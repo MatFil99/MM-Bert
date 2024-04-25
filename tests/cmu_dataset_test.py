@@ -1,9 +1,3 @@
-# import sys
-# sys.path.append('..\\cmbert')
-
-# import cmbert
-# # # import 
-# # import cmu_dataset
 
 import cmbert
 
@@ -17,15 +11,6 @@ def load_data_t1():
     config = cmbert.DataConfig()
     ds = cmbert.CmuDataset(config)
     assert ds.dataset.keys() is not None
-
-    # print(ds.dataset.keys())
-    # print(ds.dataset['CMU_MOSI_Visual_Facet_42'])
-
-    all_segments = []
-    for feat in ds.dataset.keys():
-        all_segments.extend([segid for segid in ds.dataset[feat].keys()])
-
-    print(all_segments)
 
 
 def remove_unmatched_segments_t1():
@@ -45,6 +30,7 @@ def align_features_t1():
     
     ds.align_features()
 
+
 def align_labels_t1():
     config = cmbert.DataConfig()
     ds = cmbert.CmuDataset(config)
@@ -52,3 +38,47 @@ def align_labels_t1():
     ds.align_labels()
 
     print(ds.dataset.keys())
+
+
+def word_vectors_2_sentences_t1():
+    config = cmbert.DataConfig()
+    ds = cmbert.CmuDataset(config)
+
+    text_features = ds.word_vectors_2_sentences()
+
+    print(text_features.keys())
+    print(text_features['zhpQhgha_KU[33]'])
+
+
+def remove_special_text_tokens_t1():
+    config = cmbert.DataConfig()
+    ds = cmbert.CmuDataset(config, preprocess=False)
+
+    # print(ds.dataset[ds.labels_name].keys())
+    ds.align_features(mode='text_feat')
+    ds.remove_special_text_tokens(keep_aligned=True)
+    ds.append_labels_to_dataset() # append labels to dataset and then align data to labels
+    ds.align_to_labels() # 
+
+
+def computational_sequences_2_array_t1():
+    config = cmbert.DataConfig()
+    ds = cmbert.CmuDataset(config, preprocess=True)
+
+    features, labels = ds.computational_sequences_2_array()
+
+    for name, feat in features.items():
+        print(f'{name}: {len(feat)} {feat[0].shape}')
+
+    print(f'labels.shape: {len(labels)} {labels[0].shape}')
+
+
+def words_2_sentences_t1():
+    config = cmbert.DataConfig()
+    ds = cmbert.CmuDataset(config, preprocess=False)
+
+    sentences = ds.words_2_sentences()
+
+    print(sentences[0])
+    print(sentences[1])
+    print(sentences[2])
