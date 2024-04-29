@@ -1,15 +1,18 @@
 from typing import Dict
+
+
 from transformers import AutoTokenizer, PreTrainedTokenizer
+import torch
 import numpy as np
 
-class MultimodalTokenizer():
-    # class MultimodalTokenizer(PreTrainedTokenizer):
+# class MultimodalTokenizer():
+class MultimodalTokenizer(PreTrainedTokenizer):
 
     def __init__(self, checkpoint):
         # we need to initialize text_tokenizer before calling super.__init__
         self.text_tokenizer = AutoTokenizer.from_pretrained(checkpoint)
 
-        # super(PreTrainedTokenizer, self).__init__()
+        super(PreTrainedTokenizer, self).__init__()
 
     def get_vocab(self) -> Dict[str, int]:
         return self.text_tokenizer.get_vocab()
@@ -32,8 +35,12 @@ class MultimodalTokenizer():
             audio_padded.append(new_audio_i)
             visual_padded.append(new_visual_i)
 
-        tokenized['audio_ids'] = np.array(audio_padded)
-        tokenized['visual_ids'] = np.array(visual_padded)
+        if return_tensors == 'pt':
+            tokenized['audio_data'] = torch.tensor(audio_padded)
+            tokenized['visual_data'] = torch.tensor(visual_padded)
+        else:
+            tokenized['audio_data'] = np.array(audio_padded)
+            tokenized['visual_data'] = np.array(visual_padded)
 
         return tokenized
     

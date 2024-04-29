@@ -126,7 +126,9 @@ if __name__ == '__main__':
     tokenized['audio_data'] = torch.ones(tokenized['input_ids'].shape[0], tokenized['input_ids'].shape[1], 74)
     
     # print(sentences)
-    # print(tokenized['audio_data'].shape)
+    print(tokenized['audio_data'].shape)
+    print(tokenized['input_ids'].shape)
+
 
     output, _, _ = classifier(**tokenized)
     print(output)
