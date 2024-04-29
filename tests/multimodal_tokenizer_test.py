@@ -24,5 +24,5 @@ def tokenize_t1():
     tokenized = tokenizer(text=text, audio=features['audio_feat'], visual=features['visual_feat'], padding=True, truncation=True)
 
     print(tokenized['input_ids'].shape)
-    print(tokenized['audio_ids'].shape)
-    print(tokenized['visual_ids'].shape)
+    print(tokenized['audio_data'].shape)
+    print(tokenized['visual_data'].shape)

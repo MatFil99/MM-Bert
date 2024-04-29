@@ -1,7 +1,12 @@
 import sys
 import os
+
 import numpy as np
+
+
+# from utils import *
 from .utils import *
+
 
 SDKPATH = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK'
 sys.path.append(SDKPATH)
