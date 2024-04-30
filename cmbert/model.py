@@ -40,7 +40,7 @@ class ModalityAttention(nn.Module):
 
     def forward(self, hidden_states, audio_data, attention_mask):
         att_mask = 1 - attention_mask.unsqueeze(1) # masked positions reprezented as 1, other 0 (vertical attention)
-        att_mask_ = att_mask.permute(0, 2, 1) # horizontal attention
+        att_mask_ = att_mask.permute(0, 2, 1) # horizontal attention mask
         att_mask_final = torch.logical_or(att_mask, att_mask_) * -10000.0 # square matrix attention
 
         text_data = hidden_states
@@ -54,6 +54,11 @@ class ModalityAttention(nn.Module):
         audio_data = audio_data.transpose(-1,-2)
         audio_data = self.proj_a(audio_data)
         audio_data = audio_data.transpose(-1,-2)
+        # normalization was added
+        audio_data_1 = audio_data.reshape(-1).detach() # 
+        weights = torch.sqrt(torch.norm(audio_data_1, p=2))
+
+        audio_data = audio_data / weights
 
         text_att = torch.matmul(text_data, text_data.transpose(-1, -2))
         text_att1 = self.activation(text_att)
@@ -94,7 +99,7 @@ class CMBertForSequenceClassification(nn.Module):
         self.classifier = nn.Linear(config.hidden_size, num_labels)
 
     def forward(self, input_ids, audio_data, token_type_ids=None, attention_mask=None, labels=None):
-        (_, hidden_states), (_, pooled_output) = self.encoder(input_ids, token_type_ids, attention_mask).items()
+        (_, hidden_states), (_, pout) = self.encoder(input_ids, token_type_ids, attention_mask).items()
         
         hidden_states, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, attention_mask)
         pooled_output = hidden_states[:,0] # 
@@ -103,7 +108,6 @@ class CMBertForSequenceClassification(nn.Module):
 
         return logits, text_att, fusion_att
 
-        
 
 if __name__ == '__main__':
     print('model.py')
