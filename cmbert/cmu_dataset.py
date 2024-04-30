@@ -1,8 +1,9 @@
 import sys
 import os
+from collections import defaultdict
 
 import numpy as np
-
+from torch.utils.data import Dataset
 
 # from utils import *
 from .utils import *
@@ -44,25 +45,86 @@ class DataConfig():
 
         self.labels = labels
 
-class CmuDataset():
+class CmuDataset(Dataset):
 
-    def __init__(self, config, preprocess=True):
+    def __init__(self, config, ds=None, preprocess=True):
         super(CmuDataset, self).__init__()
 
         self.dsname = config.dataset
         self.ds_path = config.ds_path
         self.feature_names = config.feature_names
         self.labels_name = config.labels
-        self.dataset, self.labels_ds = self.load_data()
+        self.preprocessed = preprocess
+        
+        if ds:
+            self.dataset = ds
+        else:
+            self.dataset, self.labels_ds = self.load_data()
+        
+        if preprocess and not ds:
+            # for testing
+            self._cut_to_n_videos(10)
 
-        if preprocess:
             self.align_features(mode='text_feat')
             self.remove_special_text_tokens(keep_aligned=True)
             self.append_labels_to_dataset() # append labels to dataset and then align data to labels
-            self.align_to_labels() # 
+            self.align_to_labels() #
+            self.labels_2_class(num_classes=2)
         
         # self.labels = self.dataset[self.labels_name]
         
+    @classmethod
+    def from_dataset(cls, cmudataset, fold):
+        config = DataConfig(
+                sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
+                dataset = cmudataset.dsname,
+                ds_path = cmudataset.ds_path,
+                text_features = cmudataset.feature_names['text_feat'],
+                audio_features = cmudataset.feature_names['audio_feat'],
+                visual_features = cmudataset.feature_names['visual_feat'],
+                labels = cmudataset.labels_name,
+        ) 
+
+        if fold:
+            dataset = cmudataset.dataset[fold]
+        else:
+            dataset = cmudataset.dataset
+
+        return cls(config, dataset, preprocess=False)
+
+    def __getitem__(self, index) -> dict:
+        if 'train' in self.dataset:
+            ds = self.dataset['train']
+        else:
+            ds = self.dataset
+
+        data = {}
+        for feat in ds.keys():
+            data[feat] = ds[feat][index]
+        
+        return data
+        # return super().__getitem__(index)
+
+    def __len__(self) -> int:
+        """
+        """
+        key = list(self.dataset.keys())[0]
+        return len(self.dataset[key])
+
+
+    def _cut_to_n_videos(self, n=10):
+        """
+        """
+        vid_ids = set(list(self.labels_ds[self.labels_name].keys())[:n])
+        all_vid_ids = self._get_all_segments()
+        vid_to_remove = all_vid_ids - vid_ids
+        
+        for feat in self.feature_names.values():
+            for id in vid_to_remove:
+                if id in self.dataset[feat].keys():
+                    del self.dataset[feat].data[id]
+                #  for sig in self.dataset[feat].keys():
+
     def load_data(self):
         recipe_features = {
             feat: self.ds_path + '\\' + feat + '.csd' for feat in self.feature_names.values() if feat is not None
@@ -109,24 +171,27 @@ class CmuDataset():
         except RuntimeError:
             print('Labels have been downloaded previously.')
 
+    def _get_all_segments(self):
+        segments = []
+        for feat in self.dataset.keys():
+            segments.extend(list(self.dataset[feat].keys()))
+        if not self.preprocessed:
+            segments.extend(self.labels_ds.keys())
+        return set(segments)
 
     def remove_unmatched_segments(self):
         """
         """
         label_feat = self.labels_name
 
-        segments = []
-        for feat in self.dataset.keys():
-            segments.extend(list(self.dataset[feat].keys()))
-        segments.extend(self.labels_ds.keys())
-        all_segments = set(segments)
+        all_segments = self._get_all_segments()
         missing_segments = set()
 
         for segment in all_segments:
             for feat in self.dataset.keys():
                 if segment not in self.dataset[feat].keys():
                     missing_segments.add(segment)
-            if segment not in self.labels_ds[label_feat].keys():
+            if not self.preprocessed and segment not in self.labels_ds[label_feat].keys():
                 missing_segments.add(segment)
         
         for segment in missing_segments:
@@ -177,30 +242,208 @@ class CmuDataset():
     def append_labels_to_dataset(self):
         self.dataset.computational_sequences[self.labels_name] = self.labels_ds.computational_sequences[self.labels_name]
 
-   
-    def computational_sequences_2_array(self):
-        features = {feat: [] for feat in self.feature_names.keys()}
-        labels = []
+    def computational_sequences_2_array(self, fold=None):
+        """
+        """
+
+        if fold is None and self.labels_name in self.dataset.keys():
+            ds = self.dataset
+            features = self._computational_sequences_2_array(ds)
+        if fold in self.dataset.keys():
+            ds = self.dataset[fold]
+            features = self._computational_sequences_2_array(ds)
+        else:
+            features = {}
+            for _fold in self.dataset.keys():
+                ds = self.dataset[_fold]
+                features[_fold] = self._computational_sequences_2_array(ds)
+
+        for key in self.dataset.keys():
+            self.dataset.computational_sequences[key] = features[key]
+
+    def _computational_sequences_2_array(self, ds):
+        """
+        """
+
+        # if fold in self.dataset.keys():
+        #     ds = self.dataset[fold]
+        # else:
+        #     ds = self.dataset
         
-        for segid in self.dataset[self.labels_name].keys():
+        if self.preprocessed:
+            segments = ds[self.labels_name].keys()
+        else:
+            segments = self.labels_ds[self.labels_name].keys()
+
+        features = {feat: [] for feat in list(self.feature_names.keys()) + ['labels']}
+        # labels = []
+        
+        for segid in segments:
             for feat_key, feat_name in self.feature_names.items():
-                feat_values = self.dataset[feat_name].data[segid]['features']
+                feat_values = ds[feat_name][segid]['features']
                 features[feat_key].append(feat_values)
 
-            labels.append(self.dataset[self.labels_name].data[segid]['features'])
+            if self.preprocessed:
+                features['labels'].extend(ds[self.labels_name][segid]['features'])
+                # labels.append(ds[self.labels_name][segid]['features'])
+            else:
+                features['labels'].extend(self.labels_ds[self.labels_name][segid]['features'])
+                # labels.append(self.labels_ds[self.labels_name][segid]['features'])
 
-        return features, labels
+        return features #, np.array(labels).squeeze(1)
 
-    def words_2_sentences(self, text_features=None):
+    # def words_2_sentences(self, fold=None):
+    #     """
+    #     """
+    #     if fold in self.dataset.keys():
+    #         text_features = self.dataset[fold][self.feature_names['text_feat']]
+    #     else:
+    #         text_features = self.dataset[self.feature_names['text_feat']]
+
+    #     sentences = []
+    #     # if not text_features:
+    #     #     text_features = self.dataset.computational_sequences[self.feature_names['text_feat']]
+
+    #     for segid in text_features.keys():
+    #         words = text_features[segid]['features'][:].squeeze(1)
+    #         sentences.append(bword_vector_2_sentence(words))
+
+    #     return sentences
+
+    def words_2_sentences(self, fold=None):
         """
         """
+        # if fold in self.dataset.keys():
+        #     ds = self.dataset[fold]
+        #     sentences = self._words_2_sentences(ds)
+        # elif self.labels_name in self.dataset.keys(): 
+        #     ds = self.dataset
+        #     sentences = self._words_2_sentences(ds)
+        # else:
+        for fold in self.dataset.keys():
+            ds = self.dataset[fold]
+            sentences = self._words_2_sentences(ds)
+
+        
+
+    def _words_2_sentences(self, ds):
         sentences = []
-        if not text_features:
-            text_features = self.dataset.computational_sequences[self.feature_names['text_feat']]
+        text_features = ds['text_feat']
 
-        for segid in text_features.keys():
-            words = text_features.data[segid]['features'][:].squeeze(1)
-            sentences.append(bword_vector_2_sentence(words))
+        for words in text_features:
+            # words = text_features[segid][:].squeeze(1)
+            sentences.append(bword_vector_2_sentence(words.squeeze(1)))
+
+        ds['text_feat'] = sentences
 
         return sentences
 
+    def _filter_observations(self, vids_filter):
+        ds = self.dataset
+
+        if self.preprocessed:
+            segments = ds[self.labels_name].keys()
+            labels_ds = self.dataset[self.labels_name]
+        else:
+            segments = self._get_all_segments()
+            labels_ds = self.labels_ds[self.labels_name]
+
+        filtered = defaultdict(dict)
+        for segid in segments:
+            vid = segid.split('[')[0]
+            if vid in vids_filter:
+                for feat in self.feature_names.values():
+                    if segid in ds[feat].keys():
+                        filtered[feat][segid] = ds[feat][segid]
+                
+                if segid in labels_ds.keys():
+                    filtered[self.labels_name][segid] = labels_ds[segid]
+
+        return filtered
+                
+
+    def train_test_valid_split(self, folds: dict):
+        """
+        """
+        foldsplits = {fold: defaultdict(dict) for fold in folds}
+
+        for fold, video_ids in folds.items():
+            foldsplits[fold] = self._filter_observations(video_ids)
+
+            self.dataset.computational_sequences[fold] = foldsplits[fold]
+
+        for feat in self.feature_names.values():
+            del self.dataset.computational_sequences[feat]
+        if self.preprocessed:
+            del self.dataset.computational_sequences[self.labels_name]
+
+        return foldsplits
+    
+
+    def labels_2_class(self, num_classes=2, inplace=True):
+        """
+        """
+        if num_classes == 2:
+            if self.labels_name in self.dataset.keys():
+                ds = self.dataset
+                self._labels_2_class(ds, num_classes=num_classes)
+            else:
+                for fold, ds in self.dataset.keys():
+                    self._labels_2_class(ds, num_classes=num_classes)
+        elif num_classes == 7:
+            if self.labels_name in self.dataset.keys():
+                ds = self.dataset
+                self._labels_2_class(ds, num_classes=num_classes)
+            else:
+                for fold, ds in self.dataset.keys():
+                    self._labels_2_class(ds, num_classes=num_classes)
+
+
+    def _labels_2_class(self, dset, num_classes=2, inplace=True):
+        """
+        """
+        ds = dset.computational_sequences[self.labels_name]
+        classes = defaultdict(dict)
+        
+        for segid in ds.keys():
+            if num_classes == 2:
+                newlabels = np.array([self._label_2_two_class(val) for val in ds[segid]['features'][:].squeeze(1)])
+            elif num_classes == 7:
+                newlabels = np.array([self._label_2_seven_classes(val) for val in ds[segid]['features'][:].squeeze(1)])
+            
+            classes[segid]['features'] = newlabels
+            classes[segid]['intervals'] = ds[segid]['intervals'][:]
+
+        if inplace:
+            dset.computational_sequences[self.labels_name] = classes
+        else:
+            dset.computational_sequences['labels'] = classes
+
+        
+    def _label_2_two_class(self, value):
+        if value <= 0:
+            res = 0
+        else:
+            res = 1
+
+        return res
+
+
+    def _label_2_seven_classes(self, value):
+        if value < -2:
+                res = -3
+        if -2 <= value and value < -1:
+                res = -2
+        if -1 <= value and value < 0:
+                res = -1
+        if 0 <= value and value <= 0:
+                res = 0
+        if 0 < value and value <= 1:
+                res = 1
+        if 1 < value and value <= 2:
+                res = 2
+        if value > 2:
+                res = 3
+        
+        return res
+    
