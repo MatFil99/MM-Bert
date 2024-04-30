@@ -13,7 +13,7 @@ SDKPATH = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK
 sys.path.append(SDKPATH)
 # import mmsdk
 from mmsdk import mmdatasdk as md
-
+from mmsdk.mmdatasdk.configurations.metadataconfigs import featuresetMetadataTemplate
 
 class DataConfig():
 
@@ -25,6 +25,7 @@ class DataConfig():
                  audio_features = 'CMU_MOSI_COVAREP',
                  visual_features = 'CMU_MOSI_Visual_Facet_42',
                  labels = 'CMU_MOSI_Opinion_Labels',
+                 load_preprocessed = False,
                  remove_pause = True # remove b'sp' words from raw text features
                  ):
         super(DataConfig, self).__init__()
@@ -42,8 +43,8 @@ class DataConfig():
             'audio_feat' : audio_features,
             'visual_feat' : visual_features,
         }
-
         self.labels = labels
+        self.load_preprocessed = load_preprocessed
 
 class CmuDataset(Dataset):
 
@@ -54,13 +55,16 @@ class CmuDataset(Dataset):
         self.ds_path = config.ds_path
         self.feature_names = config.feature_names
         self.labels_name = config.labels
-        self.preprocessed = preprocess
+        self.preprocessed = config.load_preprocessed
         
         if ds:
             self.dataset = ds
         else:
             self.dataset, self.labels_ds = self.load_data()
         
+        if config.load_preprocessed:
+            self._standardize_loaded_data()
+
         if preprocess and not ds:
             # for testing
             self._cut_to_n_videos(10)
@@ -69,7 +73,8 @@ class CmuDataset(Dataset):
             self.remove_special_text_tokens(keep_aligned=True)
             self.append_labels_to_dataset() # append labels to dataset and then align data to labels
             self.align_to_labels() #
-            self.labels_2_class(num_classes=2)
+            # self.labels_2_class(num_classes=2)
+            self.preprocessed = preprocess
         
         # self.labels = self.dataset[self.labels_name]
         
@@ -111,6 +116,22 @@ class CmuDataset(Dataset):
         key = list(self.dataset.keys())[0]
         return len(self.dataset[key])
 
+    def _standardize_loaded_data(self):
+        """
+        """
+        dictdata = {feat: defaultdict(dict) for feat in self.dataset.keys()}
+        # intervals = defaultdict(dict)
+        
+        for feat in self.dataset.keys():
+            comseq = self.dataset[feat]
+            for segid in comseq.keys():
+                dictdata[feat][segid]['features'] = comseq[segid]['features'][:]
+                dictdata[feat][segid]['intervals'] = comseq[segid]['intervals'][:]
+
+        for feat in dictdata.keys():
+            self.dataset.computational_sequences[feat] = dictdata[feat]
+            # self.dataset.computational_sequences[feat] = features[feat]
+
 
     def _cut_to_n_videos(self, n=10):
         """
@@ -124,6 +145,21 @@ class CmuDataset(Dataset):
                 if id in self.dataset[feat].keys():
                     del self.dataset[feat].data[id]
                 #  for sig in self.dataset[feat].keys():
+
+    def deploy(self, destination=None, filenames=None):
+        for key in self.dataset.keys():
+            self.initialize_missing_metadata(self.dataset.computational_sequences[key])
+
+        if destination is None:
+            destination = self.ds_path + '\\aligned'
+        if filenames is None:
+            filenames = {feat: feat for feat in self.dataset.keys()}
+        self.dataset.deploy(destination, filenames)
+
+    def initialize_missing_metadata(self, comseq):
+        missings=[x for (x,y) in zip(featuresetMetadataTemplate,[metadata in comseq.metadata.keys() for metadata in featuresetMetadataTemplate]) if y is False]
+        for m in missings:
+            comseq.metadata[m] = ''
 
     def load_data(self):
         recipe_features = {
