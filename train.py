@@ -1,6 +1,7 @@
 from collections import defaultdict
 import copy 
 
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -9,6 +10,7 @@ import transformers
 from transformers import get_scheduler, AutoTokenizer, DataCollatorWithPadding, DefaultDataCollator
 from tqdm.auto import tqdm
 import evaluate
+from transformers import AutoModel, AutoTokenizer, BertModel, PreTrainedModel, BertConfig, BertPreTrainedModel
 
 import cmbert
 from mmsdk.mmdatasdk.dataset.standard_datasets.CMU_MOSI import cmu_mosi_std_folds as standard_folds
@@ -38,31 +40,6 @@ class MultiModalDataCollator():
         tokenized.to(self.device)
         return  tokenized
 
-def evaluation(model, dataloader):
-    metrics_names = ['accuracy', 'f1']
-    metrics = {metric: evaluate.load(metric) for metric in metrics_names}
-
-    model.eval()
-    vloss = 0.0
-    # with torch.no_grad():
-    for batch in dataloader:
-        del batch['visual_data']
-        logits, text_att, fusion_att = model(**batch)
-
-        vloss += criterion(logits, batch['labels']).item()
-
-        predictions = torch.argmax(logits, dim=-1)
-
-        for name, metric in metrics.items():
-            metric.add_batch(predictions=predictions, references=batch['labels'])
-    
-    calculated_metrics = {}
-    for _, metric in metrics.items():
-        calculated_metrics.update(metric.compute())
-    calculated_metrics['loss'] = vloss
-
-    return calculated_metrics
-
 def prepare_data_splits(ds):
     folds = {
         'train': standard_folds.standard_train_fold,
@@ -72,14 +49,9 @@ def prepare_data_splits(ds):
         # 'valid': ['2iD-tVS8NPw', '5W7Z1C_fDaE', '6Egk_28TtTM'], # standard_folds.standard_valid_fold,
         # 'test': ['6_0THN4chvY', '73jzhE8R1TQ']# standard_folds.standard_test_fold
         }
+   
     ds.train_test_valid_split(folds=folds)
-    
     ds.computational_sequences_2_array()
-
-    # print(ds.dataset.keys())
-    # print(ds.dataset['train'].keys())
-    # print(ds.dataset['train']['text_feat'][0])
-    
     ds.words_2_sentences()
 
     train_ds = cmbert.CmuDataset.from_dataset(ds, fold='train')
@@ -87,6 +59,73 @@ def prepare_data_splits(ds):
     valid_ds = cmbert.CmuDataset.from_dataset(ds, fold='valid')
         
     return train_ds, valid_ds, test_ds
+
+def evaluation(model, dataloader):
+    model.eval()
+    total_acc, total_count = 0, 0
+    vloss = 0
+
+#
+    metrics_names = ['accuracy', 'f1']
+    metrics = {metric: evaluate.load(metric) for metric in metrics_names}
+#
+
+    with torch.no_grad():
+        for vbatch in dataloader:
+            # del vbatch['visual_data']
+            # del vbatch['audio_data'] # COMMENT
+
+            logits = model(**vbatch)['logits']
+            vloss += criterion(logits, vbatch['labels'])
+            total_acc += (logits.argmax(1) == vbatch['labels']).sum().item()
+            total_count += len(vbatch['labels'])
+
+            predictions = torch.argmax(logits, dim=-1)
+
+#
+            for name, metric in metrics.items():
+                metric.add_batch(predictions=predictions, references=vbatch['labels'])
+#    
+
+        calculated_metrics = {}
+        for _, metric in metrics.items():
+            calculated_metrics.update(metric.compute())
+        calculated_metrics['loss'] = vloss
+        calculated_metrics['accuracy_0'] = total_acc / total_count
+
+    return calculated_metrics
+    # return {'accuracy': total_acc / total_count}
+
+
+    # metrics_names = ['accuracy', 'f1']
+    # metrics = {metric: evaluate.load(metric) for metric in metrics_names}
+
+    # model.eval()
+    # vloss = 0.0
+    # with torch.no_grad():
+    #     for vbatch in dataloader:
+    #         del vbatch['visual_data']
+    #         del vbatch['audio_data'] # COMMENT
+
+    #         # logits, text_att, fusion_att = model(**batch) # UNCOMMENT
+    #         logits = model(**vbatch)['logits']
+
+    #         vloss += criterion(logits, vbatch['labels']).item()
+
+    #         predictions = torch.argmax(logits, dim=-1)
+
+    #         for name, metric in metrics.items():
+    #             metric.add_batch(predictions=predictions, references=vbatch['labels'])
+        
+    #         optimizer.zero_grad()
+
+    # calculated_metrics = {}
+    # for _, metric in metrics.items():
+    #     calculated_metrics.update(metric.compute())
+    # calculated_metrics['loss'] = vloss
+
+    # return calculated_metrics
+
 
 def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_scheduler, criterion):
     # num_epochs = 3
@@ -97,13 +136,27 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
     best_model = copy.deepcopy(model)
     best_accuracy = 0.0
     
+    params_prev = None
+    params_curr = None
+
     for epoch in range(num_epochs):
+        
         model.train()
+        # prev_model = copy.deepcopy(model)
+        # params_prev = prev_model.parameters()
+
+        with open('parameters' + str(epoch) + '.txt', 'w+') as fd:
+            for params in model.parameters():
+                fd.write(str(params))
+                # print(param)
         cum_loss = 0.0
         for batch in train_dataloader:
-            del batch['visual_data']
+            # del batch['visual_data']
+            # del batch['audio_data']
 
-            logits, _, _ = model(**batch)
+            # logits, _, _ = model(**batch)
+            output = model(**batch)
+            logits = output['logits']
 
             loss = criterion(logits, batch['labels'])
             loss.backward()
@@ -123,6 +176,14 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
             best_model = copy.deepcopy(model)
             best_accuracy = valid_evaluation['accuracy']
         
+        # params_curr = model.parameters()
+        # with open('cm_deltaparameters' + str(epoch) + '.txt', 'w+') as fd:
+        #     if params_prev:
+        #         for param_prev, param_curr in zip(params_prev, params_curr):
+        #             fd.write(str(param_curr - param_prev))
+                    # print(param)
+        
+
     return best_model
 
 if __name__ == '__main__':
@@ -146,8 +207,13 @@ if __name__ == '__main__':
         dataset_config = cmbert.DataConfig()
 
     # model configuration
-    checkpoint = 'google-bert/bert-base-uncased'
-    model_config = cmbert.CMBertConfig()
+    checkpoint = 'distilbert/distilbert-base-uncased'
+    # checkpoint = 'google-bert/bert-base-uncased'
+    model_config = cmbert.CMBertConfig(
+        encoder_checkpoint=checkpoint,
+        hidden_dropout_prob=0.1,
+        hidden_size=768
+    )
     num_labels = 2
 
 
@@ -158,8 +224,11 @@ if __name__ == '__main__':
     else:
         ds = cmbert.CmuDataset(dataset_config, preprocess=True)
 
-    model = cmbert.CMBertForSequenceClassification(config=model_config, num_labels=num_labels)
-    # tokenizer = cmbert.MultimodalTokenizer(checkpoint=checkpoint)
+    # bconfig = BertConfig.from_pretrained(checkpoint)
+    model = cmbert.CMBertForSequenceClassification(config=model_config) #, num_labels=2)
+    # model = cmbert.CMBertForSequenceClassification.from_pretrained(checkpoint, config=model_config, num_labels=2)
+    tokenizer = cmbert.MultimodalTokenizer(checkpoint=checkpoint)
+
 
     # save data
     # ds.deploy()
@@ -173,9 +242,16 @@ if __name__ == '__main__':
     train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds)
     
 
+    # from transformers import AutoModelForSequenceClassification, BertForSequenceClassification
+    
+    # model = BertForSequenceClassification.from_pretrained(checkpoint, num_labels=2)
+    # AutoModelForSequenceClassification.from_pretrained(checkpoint).to(device)
+
+
     # # # 
+    batch_size = 8
     criterion = nn.CrossEntropyLoss()
-    optimizer = AdamW(model.parameters(), lr=1e-3)
+    optimizer = AdamW(model.parameters(), lr=2e-5) # 1e-4 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model.to(device)
     criterion.to(device)
@@ -183,11 +259,11 @@ if __name__ == '__main__':
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     data_collator = MultiModalDataCollator(checkpoint=checkpoint, device=device)
 
-    train_dataloader = DataLoader(train_ds, batch_size=4, collate_fn=data_collator)
-    valid_dataloader = DataLoader(valid_ds, batch_size=4, collate_fn=data_collator)
-    test_dataloader = DataLoader(test_ds, batch_size=4, collate_fn=data_collator)
+    train_dataloader = DataLoader(train_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
+    valid_dataloader = DataLoader(valid_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
+    test_dataloader = DataLoader(test_ds, batch_size=batch_size, collate_fn=data_collator)
 
-    num_epochs = 3
+    num_epochs = 4
     num_training_steps = num_epochs*len(train_dataloader)
     lr_scheduler = get_scheduler(
         "linear",
@@ -213,6 +289,9 @@ if __name__ == '__main__':
     # # print(sentences)
 
 
+
+
+    
     best_model = train(
         model=model,
         train_dataloader=train_dataloader,
