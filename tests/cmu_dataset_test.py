@@ -135,3 +135,46 @@ def train_test_valid_split_t1():
     print(ds.dataset['train']['CMU_MOSI_COVAREP'].keys())
     print(ds.dataset['train']['CMU_MOSI_COVAREP']['W8NXH0Djyww[21]']['features'][:])
     
+
+
+
+# to paste in prepare_data_splits
+def dataset_consistency_after_manipulation(ds):
+    folds = {
+        'train': standard_folds.standard_train_fold,
+        'valid': standard_folds.standard_valid_fold,
+        'test': standard_folds.standard_test_fold,
+        # 'train': ['03bSnISJMiM', '0h-zjBukYpk', '1DmNV9C1hbY', '1iG0909rllw', '2WGyTLYerpo'], # standard_folds.standard_train_fold,
+        # 'valid': ['2iD-tVS8NPw', '5W7Z1C_fDaE', '6Egk_28TtTM'], # standard_folds.standard_valid_fold,
+        # 'test': ['6_0THN4chvY', '73jzhE8R1TQ']# standard_folds.standard_test_fold
+        }
+    
+    segments = list(ds.dataset['CMU_MOSI_TimestampedWords'].keys())
+    # print(segments)
+
+    idx = 15
+    segid = segments[idx]
+    # print(idx)
+
+    print(ds.dataset['CMU_MOSI_TimestampedWords'][segid])
+    print(ds.dataset['CMU_MOSI_Opinion_Labels'][segid])
+    
+
+    ds.train_test_valid_split(folds=folds)
+
+    print(ds.dataset['train']['CMU_MOSI_TimestampedWords'][segid])
+    print(ds.dataset['train']['CMU_MOSI_Opinion_Labels'][segid])
+    
+    ds.computational_sequences_2_array()
+
+    print(ds.dataset['train']['text_feat'][idx])
+    print(ds.dataset['train']['labels'][idx])
+
+    # print(ds.dataset.keys())
+    # print(ds.dataset['train'].keys())
+    # print(ds.dataset['train']['text_feat'][0])
+    
+    ds.words_2_sentences()
+
+    print(ds.dataset['train']['text_feat'][idx])
+    print(ds.dataset['train']['labels'][idx])

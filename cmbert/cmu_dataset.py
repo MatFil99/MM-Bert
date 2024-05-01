@@ -456,8 +456,8 @@ class CmuDataset(Dataset):
             dset.computational_sequences['labels'] = classes
 
         
-    def _label_2_two_class(self, value):
-        if value <= 0:
+    def _label_2_two_class(self, a):
+        if a <= 0:
             res = 0
         else:
             res = 1
@@ -465,21 +465,21 @@ class CmuDataset(Dataset):
         return res
 
 
-    def _label_2_seven_classes(self, value):
-        if value < -2:
-                res = -3
-        if -2 <= value and value < -1:
-                res = -2
-        if -1 <= value and value < 0:
-                res = -1
-        if 0 <= value and value <= 0:
-                res = 0
-        if 0 < value and value <= 1:
-                res = 1
-        if 1 < value and value <= 2:
-                res = 2
-        if value > 2:
-                res = 3
+    def _label_2_seven_classes(self, a):
+        if a < -2:
+            res = 0
+        if -2 <= a and a < -1:
+            res = 1
+        if -1 <= a and a < 0:
+            res = 2
+        if 0 <= a and a <= 0:
+            res = 3
+        if 0 < a and a <= 1:
+            res = 4
+        if 1 < a and a <= 2:
+            res = 5
+        if a > 2:
+            res = 6
         
         return res
     
