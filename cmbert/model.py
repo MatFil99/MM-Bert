@@ -17,19 +17,29 @@ class CMBertConfig(BertConfig):
     def __init__(self,
                  encoder_checkpoint = 'google-bert/bert-base-uncased',
                  hidden_dropout_prob = 0.1,
-                 hidden_size = 768
+                 modality_att_dropout_prob = 0.1,
+                 hidden_size = 768,
+                 audio_feat_size = 74,
+                 visual_feat_size = 35,
+                 projection_size = 30,
+                 num_labels = 2,
                  ):
         super().__init__()
         self.encoder_checkpoint = encoder_checkpoint
         self.hidden_dropout_prob = hidden_dropout_prob
         self.hidden_size = hidden_size
+        self.audio_feat_size = audio_feat_size
+        self.visual_feat_size = visual_feat_size
+        self.projection_size = projection_size
+        self.num_labels = num_labels
 
 class ModalityAttention(nn.Module):
 
     def __init__(self, config):
         super(ModalityAttention, self).__init__()
-        self.proj_t = nn.Conv1d(768, 30, kernel_size=1, padding=0, bias=False)
-        self.proj_a = nn.Conv1d(74, 30, kernel_size=1, padding=0, bias=False)
+
+        self.proj_t = nn.Conv1d(config.hidden_size, config.projection_size, kernel_size=1, padding=0, bias=False)
+        self.proj_a = nn.Conv1d(config.audio_feat_size, config.projection_size, kernel_size=1, padding=0, bias=False)
         # self.proj_v = nn.Conv1d(74, 30, kernel_size=1, padding=0, bias=False)
 
         self.activation = nn.ReLU()
@@ -42,9 +52,9 @@ class ModalityAttention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
         self.dropout1 = nn.Dropout(0.3)
-        self.dense = nn.Linear(768, 768)
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.norm = nn.LayerNorm(768)
+        self.norm = nn.LayerNorm(config.hidden_size)
 
     def forward(self, hidden_states, audio_data, attention_mask):
         att_mask = 1 - attention_mask.unsqueeze(1) # masked positions reprezented as 1, other 0 (vertical attention)
@@ -99,7 +109,7 @@ class ModalityAttention(nn.Module):
 # class CMBertForSequenceClassification(BertPreTrainedModel):
 class CMBertForSequenceClassification(DistilBertPreTrainedModel):
 
-    def __init__(self, config, num_labels=2):
+    def __init__(self, config): #, num_labels=2):
         super(CMBertForSequenceClassification, self).__init__(config)
 
         print(config)
@@ -110,8 +120,10 @@ class CMBertForSequenceClassification(DistilBertPreTrainedModel):
         self.encoder = AutoModel.from_pretrained(config.encoder_checkpoint)
         # self.distilbert = AutoModel.from_pretrained(checkpoint)
         
-        
-        self.modality_fusion = ModalityAttention(config)
+        if config.audio_feat_size or config.visual_feat_size:
+            self.modality_fusion = ModalityAttention(config)
+        else:
+            self.modality_fusion = None
 
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         
@@ -134,29 +146,24 @@ class CMBertForSequenceClassification(DistilBertPreTrainedModel):
         
         if self.config.encoder_checkpoint == 'distilbert/distilbert-base-uncased':
             outputs = self.encoder(
-            # outputs = self.distilbert(
                 input_ids,
                 attention_mask=attention_mask,
-                # token_type_ids=token_type_ids,
             )
             hidden_states = outputs[0]
             pooled_output = outputs[0][:,0] # last of hidden state
         elif self.config.encoder_checkpoint == 'google-bert/bert-base-uncased':
             outputs = self.encoder(
-            # outputs = self.distilbert(
                 input_ids,
                 attention_mask=attention_mask,
-                token_type_ids=token_type_ids,
             )
             hidden_states = outputs[0]
-            pooled_output = outputs[1]
-        # print(outputs)
-        # pooled_output = outputs[1]
+            pooled_output = outputs[0][:,0]
+            # pooled_output = outputs[1]
 
-        # if audio_data is not None:
-
-        hidden_state, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, attention_mask)
-        pooled_output = hidden_state[:,0] # 
+        if self.modality_fusion:
+            hidden_states, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, attention_mask)
+    
+        pooled_output = hidden_states[:,0] # 
 
         pooled_output = self.dropout(pooled_output)
 
@@ -176,62 +183,6 @@ class CMBertForSequenceClassification(DistilBertPreTrainedModel):
             attentions=outputs.attentions,
         )
 
-    # def forward(
-    #     self,
-    #     audio_data=None,
-    #     input_ids: Optional[torch.Tensor] = None,
-    #     attention_mask: Optional[torch.Tensor] = None,
-    #     token_type_ids: Optional[torch.Tensor] = None,
-    #     position_ids: Optional[torch.Tensor] = None,
-    #     head_mask: Optional[torch.Tensor] = None,
-    #     inputs_embeds: Optional[torch.Tensor] = None,
-    #     labels: Optional[torch.Tensor] = None,
-    #     output_attentions: Optional[bool] = None,
-    #     output_hidden_states: Optional[bool] = None,
-    #     return_dict: Optional[bool] = None,
-    # ): # -> Union[Tuple[torch.Tensor], SequenceClassifierOutput]:
-    #     r"""
-    #     labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
-    #         Labels for computing the sequence classification/regression loss. Indices should be in `[0, ...,
-    #         config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If
-    #         `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
-    #     """
-    #     return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-    #     outputs = self.base(
-    #     # outputs = self.distilbert(
-    #         input_ids,
-    #         attention_mask=attention_mask,
-    #         token_type_ids=token_type_ids,
-    #         position_ids=position_ids,
-    #         head_mask=head_mask,
-    #         inputs_embeds=inputs_embeds,
-    #         output_attentions=output_attentions,
-    #         output_hidden_states=output_hidden_states,
-    #         return_dict=return_dict,
-    #     )
-
-    #     # print(outputs)
-
-    #     pooled_output = outputs.pooler_output
-    #     # outputs[1]
-    #     # p2 = outputs[0][:, 0]
-    #     # print(pooled_output == p2)
-
-    #     pooled_output = self.dropout(pooled_output) #
-    #     pooled_output = self.pre_classifier(pooled_output) #
-    #     # pooled_output = nn.ReLU()(pooled_output)
-    #     pooled_output = self.dropout(pooled_output) #
-
-    #     logits = self.classifier(pooled_output)
-
-    #     return {'logits': logits,'text_att': None,'fusion_att': None}
-    #     SequenceClassifierOutput(
-    #         loss=loss,
-    #         logits=logits,
-    #         hidden_states=outputs.hidden_states,
-    #         attentions=outputs.attentions,
-    #     )
 
 
 if __name__ == '__main__':

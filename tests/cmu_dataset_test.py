@@ -60,7 +60,7 @@ def word_vectors_2_sentences_t1():
 
 def remove_special_text_tokens_t1():
     config = cmbert.DataConfig()
-    ds = cmbert.CmuDataset(config, preprocess=False)
+    ds = cmbert.CmuDataset(config)
 
     # print(ds.dataset[ds.labels_name].keys())
     ds.align_features(mode='text_feat')
@@ -71,7 +71,7 @@ def remove_special_text_tokens_t1():
 
 def computational_sequences_2_array_t1():
     config = cmbert.DataConfig()
-    ds = cmbert.CmuDataset(config, preprocess=True)
+    ds = cmbert.CmuDataset(config)
 
     features, labels = ds.computational_sequences_2_array()
 
@@ -82,7 +82,7 @@ def computational_sequences_2_array_t1():
 
 def computational_sequences_2_array_t2():
     config = cmbert.DataConfig()
-    ds = cmbert.CmuDataset(config, preprocess=True)
+    ds = cmbert.CmuDataset(config)
 
     folds = {
         'train': standard_folds.standard_train_fold,
@@ -101,7 +101,7 @@ def computational_sequences_2_array_t2():
 
 def words_2_sentences_t1():
     config = cmbert.DataConfig()
-    ds = cmbert.CmuDataset(config, preprocess=False)
+    ds = cmbert.CmuDataset(config)
 
     sentences = ds.words_2_sentences()
 
@@ -111,8 +111,8 @@ def words_2_sentences_t1():
 
 
 def train_test_valid_split_t1():
-    config = cmbert.DataConfig()
-    ds = cmbert.CmuDataset(config, preprocess=True)
+    config = cmbert.DataConfig(preprocess=True)
+    ds = cmbert.CmuDataset(config)
 
     # md.dataset.standard_datasets.CMU_MOSI.
     folds = {
