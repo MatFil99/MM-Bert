@@ -15,40 +15,140 @@ sys.path.append(SDKPATH)
 from mmsdk import mmdatasdk as md
 from mmsdk.mmdatasdk.configurations.metadataconfigs import featuresetMetadataTemplate
 
-class DataConfig():
+
+class SDKDatasets(dict):
+
+    def __init__(self):
+        super(SDKDatasets, self).__init__()
+        self['CMUMOSI'] = {}
+        self['CMUMOSEI'] = {}
+        self['POM'] = {}
+        self.initialize_datasets_config()
+
+    def initialize_datasets_config(self):
+        # CMUMOSI
+        self['CMUMOSI']['RAWTEXT'] = {
+            'featuresname': 'CMU_MOSI_TimestampedWords',
+            'feat_size': 1,
+            'modality': 'rawtext'
+        }
+        self['CMUMOSI']['COVAREP'] = {
+            'featuresname': 'CMU_MOSI_COVAREP',
+            'feat_size': 74,
+            'modality': 'audio'
+        }
+        self['CMUMOSI']['FACET42'] = {
+            'featuresname': 'CMU_MOSI_Visual_Facet_42',
+            'feat_size': 35,
+            'modality': 'visual'
+        }
+        self['CMUMOSI']['OPENFACE2'] = {
+            'featuresname': 'CMU_MOSI_Visual_OpenFace_2',
+            'feat_size': 709, # after selection just useful features
+            'modality': 'visual'
+        }
+        self['CMUMOSI']['LABELS'] = {
+            'featuresname': 'CMU_MOSI_Opinion_Labels',
+            'feat_size': 1,
+            'modality': 'label'
+        }
+
+        # CMUMOSEI
+        self['CMUMOSEI']['RAWTEXT'] = {
+            'featuresname': 'CMU_MOSEI_TimestampedWords',
+            'feat_size': 1,
+            'modality': 'rawtext'
+        }
+        self['CMUMOSEI']['COVAREP'] = {
+            'featuresname': 'CMU_MOSEI_COVAREP',
+            'feat_size': 74,
+            'modality': 'audio'
+        }
+        self['CMUMOSEI']['FACET42'] = {
+            'featuresname': 'CMU_MOSEI_VisualFacet42',
+            'feat_size': 35,
+            'modality': 'visual'
+        }
+        self['CMUMOSEI']['OPENFACE2'] = {
+            'featuresname': 'CMU_MOSEI_VisualOpenFace2',
+            'feat_size': 709, # after selection just useful features
+            'modality': 'visual'
+        }
+        self['CMUMOSEI']['LABELS'] = {
+            'featuresname': 'CMU_MOSEI_Labels',
+            'feat_size': 1,
+            'modality': 'label'
+        }
+
+        # POM
+        self['CMUMOSEI']['RAWTEXT'] = {
+            'filename': 'POM_TimestampedWords.csd',
+            'feat_size': 1,
+            'modality': 'rawtext'
+        }
+        self['CMUMOSEI']['COVAREP'] = {
+            'filename': 'POM_COVAREP.csd',
+            'feat_size': 43,
+            'modality': 'audio'
+        }
+        self['CMUMOSEI']['FACET42'] = {
+            'filename': 'POM_Facet_42.csd',
+            'feat_size': 35,
+            'modality': 'visual'
+        }
+        self['CMUMOSEI']['OPENFACE2'] = {
+            'filename': 'POM_OpenFace2.csd',
+            'feat_size': 708, # after selection just useful features
+            'modality': 'visual'
+        }
+        self['CMUMOSEI']['LABELS'] = {
+            'filename': 'POM_Labels.csd',
+            'feat_size': 1,
+            'modality': 'label'
+        }
+
+SDK_DS = SDKDatasets()
+
+class CmuDatasetConfig():
 
     def __init__(self,
                  sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
                  dataset = 'cmumosi',
-                 ds_path = None,
                  text_features = 'CMU_MOSI_TimestampedWords',
                  audio_features = 'CMU_MOSI_COVAREP',
                  visual_features = 'CMU_MOSI_Visual_Facet_42',
                  labels = 'CMU_MOSI_Opinion_Labels',
+                 preprocess = True,
                  load_preprocessed = False,
-                 remove_pause = True # remove b'sp' words from raw text features
                  ):
-        super(DataConfig, self).__init__()
+        super(CmuDatasetConfig, self).__init__()
 
         self.sdkpath = sdkpath
-        self.dataset = dataset
+        self.dataset = dataset.lower() #
 
-        if ds_path:
-            self.ds_path = ds_path
+        if load_preprocessed:
+            self.ds_path = os.path.join(sdkpath, self.dataset, 'aligned')
         else:
-            self.ds_path = os.path.join(sdkpath, dataset)
+            self.ds_path = os.path.join(sdkpath, self.dataset)
 
         self.feature_names = {
-            'text_feat' : text_features,
-            'audio_feat' : audio_features,
-            'visual_feat' : visual_features,
+            # 'text_feat' : text_features,
+            # 'audio_feat' : audio_features,
+            # 'visual_feat' : visual_features,
         }
+        self.feature_names['text_feat'] = text_features
+        if audio_features:
+            self.feature_names['audio_feat'] = audio_features
+        if visual_features:
+            self.feature_names['visual_feat'] = visual_features
+
         self.labels = labels
+        self.preprocess = preprocess
         self.load_preprocessed = load_preprocessed
 
 class CmuDataset(Dataset):
 
-    def __init__(self, config, ds=None, preprocess=True):
+    def __init__(self, config, ds=None):
         super(CmuDataset, self).__init__()
 
         self.dsname = config.dataset
@@ -61,33 +161,37 @@ class CmuDataset(Dataset):
             self.dataset = ds
         else:
             self.dataset, self.labels_ds = self.load_data()
-        
+
         if config.load_preprocessed:
             self._standardize_loaded_data()
 
-        if preprocess and not ds:
+        if config.preprocess and not ds and not config.load_preprocessed:
             # for testing
-            self._cut_to_n_videos(10)
+            # self._cut_to_n_videos(10)
 
             self.align_features(mode='text_feat')
             self.remove_special_text_tokens(keep_aligned=True)
             self.append_labels_to_dataset() # append labels to dataset and then align data to labels
-            self.align_to_labels() #
-            # self.labels_2_class(num_classes=2)
-            self.preprocessed = preprocess
+            self.align_to_labels()
+            self.preprocessed = config.preprocess
         
-        # self.labels = self.dataset[self.labels_name]
+        if config.load_preprocessed:
+            self.append_labels_to_dataset()
+            
         
     @classmethod
     def from_dataset(cls, cmudataset, fold):
-        config = DataConfig(
+        audio_feat = cmudataset.feature_names['audio_feat'] if 'audio_feat' in cmudataset.feature_names else None
+        visual_feat = cmudataset.feature_names['visual_feat'] if 'visual_feat' in cmudataset.feature_names else None
+        config = CmuDatasetConfig(
                 sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
                 dataset = cmudataset.dsname,
-                ds_path = cmudataset.ds_path,
                 text_features = cmudataset.feature_names['text_feat'],
-                audio_features = cmudataset.feature_names['audio_feat'],
-                visual_features = cmudataset.feature_names['visual_feat'],
+                audio_features = audio_feat,
+                visual_features = visual_feat,
                 labels = cmudataset.labels_name,
+                preprocess = False,
+                load_preprocessed = False,
         ) 
 
         if fold:
@@ -95,7 +199,7 @@ class CmuDataset(Dataset):
         else:
             dataset = cmudataset.dataset
 
-        return cls(config, dataset, preprocess=False)
+        return cls(config, dataset)
 
     def __getitem__(self, index) -> dict:
         if 'train' in self.dataset:
@@ -300,11 +404,6 @@ class CmuDataset(Dataset):
     def _computational_sequences_2_array(self, ds):
         """
         """
-
-        # if fold in self.dataset.keys():
-        #     ds = self.dataset[fold]
-        # else:
-        #     ds = self.dataset
         
         if self.preprocessed:
             segments = ds[self.labels_name].keys()
@@ -328,34 +427,9 @@ class CmuDataset(Dataset):
 
         return features #, np.array(labels).squeeze(1)
 
-    # def words_2_sentences(self, fold=None):
-    #     """
-    #     """
-    #     if fold in self.dataset.keys():
-    #         text_features = self.dataset[fold][self.feature_names['text_feat']]
-    #     else:
-    #         text_features = self.dataset[self.feature_names['text_feat']]
-
-    #     sentences = []
-    #     # if not text_features:
-    #     #     text_features = self.dataset.computational_sequences[self.feature_names['text_feat']]
-
-    #     for segid in text_features.keys():
-    #         words = text_features[segid]['features'][:].squeeze(1)
-    #         sentences.append(bword_vector_2_sentence(words))
-
-    #     return sentences
-
     def words_2_sentences(self, fold=None):
         """
         """
-        # if fold in self.dataset.keys():
-        #     ds = self.dataset[fold]
-        #     sentences = self._words_2_sentences(ds)
-        # elif self.labels_name in self.dataset.keys(): 
-        #     ds = self.dataset
-        #     sentences = self._words_2_sentences(ds)
-        # else:
         for fold in self.dataset.keys():
             ds = self.dataset[fold]
             sentences = self._words_2_sentences(ds)
@@ -420,6 +494,9 @@ class CmuDataset(Dataset):
         """
         """
         if num_classes == 2:
+            print(self.labels_name)
+            print(self.dataset.keys())
+            print(self.labels_ds.keys())
             if self.labels_name in self.dataset.keys():
                 ds = self.dataset
                 self._labels_2_class(ds, num_classes=num_classes)
