@@ -131,11 +131,7 @@ class CmuDatasetConfig():
         else:
             self.ds_path = os.path.join(sdkpath, self.dataset)
 
-        self.feature_names = {
-            # 'text_feat' : text_features,
-            # 'audio_feat' : audio_features,
-            # 'visual_feat' : visual_features,
-        }
+        self.feature_names = {}
         self.feature_names['text_feat'] = text_features
         if audio_features:
             self.feature_names['audio_feat'] = audio_features
@@ -235,6 +231,21 @@ class CmuDataset(Dataset):
         for feat in dictdata.keys():
             self.dataset.computational_sequences[feat] = dictdata[feat]
             # self.dataset.computational_sequences[feat] = features[feat]
+
+    def replace_inf_and_nan_values(self, value=0):
+        """
+        """
+
+        for fold in self.dataset.keys():
+            ds = self.dataset[fold]
+            for feat in [f for f in ds.keys() if f != self.feature_names['text_feat']]:
+                for segid in ds[feat].keys():
+                    features = ds[feat][segid]['features']
+                    isnan = np.isnan(features)
+                    isinf = np.bitwise_not(np.isfinite(features))
+                    ds[feat][segid]['features'][isnan] = value
+                    ds[feat][segid]['features'][isinf] = value
+
 
 
     def _cut_to_n_videos(self, n=10):

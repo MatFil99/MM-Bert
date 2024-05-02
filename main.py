@@ -21,10 +21,6 @@ def main(args):
         visual_features = SDK_DS[ds][args.visual_feat]['featuresname']
         visual_feat_size = SDK_DS[ds][args.visual_feat]['feat_size']
 
-    preprocess = args.preprocess
-    load_preprocessed = args.load_preprocessed
-
-
     dataset_config = cmbert.CmuDatasetConfig(
         sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
         dataset = ds,
@@ -32,8 +28,8 @@ def main(args):
         audio_features = audio_features,
         visual_features = visual_features,
         labels = labels,
-        preprocess = preprocess,
-        load_preprocessed = load_preprocessed,
+        preprocess = args.preprocess,
+        load_preprocessed = args.load_preprocessed,
     )
 
     training_arguments = train.TrainingArgs(
@@ -44,7 +40,8 @@ def main(args):
         lr = model_config.lr,
         scheduler_type = model_config.scheduler_type,
         num_warmup_steps = model_config.num_warmup_steps,
-        best_model_metric = model_config.best_model_metric,
+        save_best_model = model_config.save_best_model,
+        save_model_dest = model_config.save_model_dest
     )
 
     _model_config = cmbert.CMBertConfig(
@@ -56,18 +53,22 @@ def main(args):
         visual_feat_size=visual_feat_size,
         projection_size=model_config.projection_size,
         num_labels=model_config.num_labels,
+        best_model_metric=model_config.best_model_metric,
     )
 
     # for debug
-    for attr, value in dataset_config.__dict__.items():
-        print(f'{attr}: {value}')
+    # for attr, value in dataset_config.__dict__.items():
+    #     print(f'{attr}: {value}')
 
-    for attr, value in training_arguments.__dict__.items():
-        print(f'{attr}: {value}')
-
-    for attr, value in _model_config.__dict__.items():
-        print(f'{attr}: {value}')
+    # print()
+    # for attr, value in training_arguments.__dict__.items():
+    #     print(f'{attr}: {value}')
+    
+    # print()
+    # for attr, value in _model_config.__dict__.items():
+    #     print(f'{attr}: {value}')
     # for debug
+    # print(_model_config.best_model_metric)
 
     train.main(
         dataset_config=dataset_config,
@@ -93,7 +94,7 @@ if __name__ == '__main__':
                         required=True,
                         help='dataset for training and testing model'
                         )
-    
+
     parser.add_argument('--t', dest='text_feat', metavar='text features', type=str,
                         choices=['RAWTEXT'], default='RAWTEXT',
                         help='text features used for training and testing model'
@@ -110,7 +111,7 @@ if __name__ == '__main__':
                         )
 
     parser.add_argument('--preprocess', dest='preprocess',
-                        action='store_false',
+                        action='store_true',
                         help='do preprocessing dataset, it takse long time - better reuse saved preprocessed data'
                         )
     
