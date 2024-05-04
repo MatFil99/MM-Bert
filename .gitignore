@@ -163,3 +163,4 @@ cython_debug/
 legacy_parameters/
 parameters*.txt
 experiments/
+models/

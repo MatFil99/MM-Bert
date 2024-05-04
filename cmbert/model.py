@@ -23,15 +23,18 @@ class CMBertConfig(BertConfig):
                  visual_feat_size = 35,
                  projection_size = 30,
                  num_labels = 2,
+                 best_model_metric = 'accuracy',
                  ):
         super().__init__()
         self.encoder_checkpoint = encoder_checkpoint
         self.hidden_dropout_prob = hidden_dropout_prob
+        self.modality_att_dropout_prob = modality_att_dropout_prob
         self.hidden_size = hidden_size
         self.audio_feat_size = audio_feat_size
         self.visual_feat_size = visual_feat_size
         self.projection_size = projection_size
         self.num_labels = num_labels
+        self.best_model_metric = best_model_metric
 
 class ModalityAttention(nn.Module):
 
@@ -39,28 +42,52 @@ class ModalityAttention(nn.Module):
         super(ModalityAttention, self).__init__()
 
         self.proj_t = nn.Conv1d(config.hidden_size, config.projection_size, kernel_size=1, padding=0, bias=False)
-        self.proj_a = nn.Conv1d(config.audio_feat_size, config.projection_size, kernel_size=1, padding=0, bias=False)
-        # self.proj_v = nn.Conv1d(74, 30, kernel_size=1, padding=0, bias=False)
+        
+        if config.audio_feat_size is not None:
+            self.audio_modality = True
+            self.proj_a = nn.Conv1d(config.audio_feat_size, config.projection_size, kernel_size=1, padding=0, bias=False)
+            self.audio_weight_1 = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
+            self.audio_weight_1.data.fill_(1)
+        else:
+            self.audio_modality = False
+            self.proj_a = None
+            self.audio_weight_1 = None
+
+        if config.visual_feat_size is not None:
+            self.visual_modality = True
+            self.proj_v = nn.Conv1d(config.visual_feat_size, config.projection_size, kernel_size=1, padding=0, bias=False)
+            self.visual_weight_1 = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
+            self.visual_weight_1.data.fill_(1)
+        else:
+            self.visual_modality = False
+            self.proj_v = None
+            self.visual_weight_1 = None
+
+            # self.proj_a = None
+        # self.proj_v = nn.Conv1d(config.visual_feat_size, config.projection_size, kernel_size=1, padding=0, bias=False)
 
         self.activation = nn.ReLU()
         self.text_weight_1 = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
-        self.audio_weight_1 = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
+        
+        # self.visual_weight_1 = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
         self.bias = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
-        self.audio_weight_1.data.fill_(1)
         self.text_weight_1.data.fill_(1)
+        
+        # self.visual_weight_1.data.fill_(1)
         self.bias.data.fill_(0)
         self.softmax = nn.Softmax(dim=-1)
 
-        self.dropout1 = nn.Dropout(0.3)
+        self.dropout1 = nn.Dropout(config.modality_att_dropout_prob)
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.norm = nn.LayerNorm(config.hidden_size)
 
-    def forward(self, hidden_states, audio_data, attention_mask):
+    def forward(self, hidden_states, audio_data, visual_data, attention_mask):
         att_mask = 1 - attention_mask.unsqueeze(1) # masked positions reprezented as 1, other 0 (vertical attention)
         att_mask_ = att_mask.permute(0, 2, 1) # horizontal attention mask
         att_mask_final = torch.logical_or(att_mask, att_mask_) * -10000.0 # square matrix attention
 
+        # text projection
         text_data = hidden_states
         text_data = text_data.transpose(1,2) # prepare for conv1d
         text_data = self.proj_t(text_data)
@@ -69,26 +96,50 @@ class ModalityAttention(nn.Module):
         weights = torch.sqrt(torch.norm(text_data_1, p=2))
         text_data = text_data / weights
         
-        audio_data = audio_data.transpose(-1,-2)
-        audio_data = self.proj_a(audio_data)
-        audio_data = audio_data.transpose(-1,-2)
-        # normalization was added
-        audio_data_1 = audio_data.reshape(-1).detach() # 
-        weights = torch.sqrt(torch.norm(audio_data_1, p=2))
+        if self.audio_modality:
+            # audio projection
+            audio_data = audio_data.transpose(-1,-2)
+            audio_data = self.proj_a(audio_data)
+            audio_data = audio_data.transpose(-1,-2)
+            # normalization was added
+            audio_data_1 = audio_data.reshape(-1).detach() # 
+            weights = torch.sqrt(torch.norm(audio_data_1, p=2))
+            audio_data = audio_data / weights
 
-        audio_data = audio_data / weights
+            # attention
+            audio_att = torch.matmul(audio_data, audio_data.transpose(-1, -2))
+            audio_att = self.activation(audio_att)
+            audio_att_weighted = audio_att * self.audio_weight_1
+        else:
+            audio_att_weighted = 0
 
+        if self.visual_modality:
+            # visual projection
+            visual_data = visual_data.transpose(-1,-2)
+            visual_data = self.proj_v(visual_data)
+            visual_data = visual_data.transpose(-1,-2)
+            # normalization was added
+            visual_data_1 = visual_data.reshape(-1).detach() # 
+            weights = torch.sqrt(torch.norm(visual_data_1, p=2))
+            visual_data = visual_data / weights
+
+            # attention
+            visual_att = torch.matmul(visual_data, visual_data.transpose(-1, -2))
+            visual_att = self.activation(visual_att)
+            visual_att_weighted = visual_att * self.visual_weight_1
+        else:
+            visual_att_weighted = 0
+
+
+        # text attention
         text_att = torch.matmul(text_data, text_data.transpose(-1, -2))
-        text_att1 = self.activation(text_att)
+        text_att = self.activation(text_att)
+        text_att_weighted = text_att * self.text_weight_1
 
-        audio_att = torch.matmul(audio_data, audio_data.transpose(-1, -2))
-        audio_att = self.activation(audio_att)
-
-        text_weight_1 = self.text_weight_1
-        audio_weight_1 = self.audio_weight_1
         bias = self.bias
 
-        fusion_att = text_weight_1 * text_att1 + audio_weight_1 * audio_att + bias
+        # fusion_att = text_weight_1 * text_att1 + audio_weight_1 * audio_att + visual_weight_1 * visual_att + bias
+        fusion_att = text_att_weighted + audio_att_weighted + visual_att_weighted + bias
         fusion_att1 = self.activation(fusion_att)
         fusion_att = fusion_att + att_mask_final
         fusion_att = self.softmax(fusion_att)
@@ -103,7 +154,7 @@ class ModalityAttention(nn.Module):
         hidden_states_new = self.dropout(hidden_states_new)
         hidden_states_new = self.norm(hidden_states_new)
 
-        return hidden_states_new, text_att1, fusion_att1
+        return hidden_states_new, text_att, fusion_att1
 
 
 # class CMBertForSequenceClassification(BertPreTrainedModel):
@@ -112,9 +163,7 @@ class CMBertForSequenceClassification(DistilBertPreTrainedModel):
     def __init__(self, config): #, num_labels=2):
         super(CMBertForSequenceClassification, self).__init__(config)
 
-        print(config)
-
-        self.num_labels = config.num_labels
+        self.num_labels = config.num_labels # COMMENT
         self.config = config
 
         self.encoder = AutoModel.from_pretrained(config.encoder_checkpoint)
@@ -161,7 +210,7 @@ class CMBertForSequenceClassification(DistilBertPreTrainedModel):
             # pooled_output = outputs[1]
 
         if self.modality_fusion:
-            hidden_states, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, attention_mask)
+            hidden_states, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, visual_data, attention_mask)
     
         pooled_output = hidden_states[:,0] # 
 
@@ -186,7 +235,6 @@ class CMBertForSequenceClassification(DistilBertPreTrainedModel):
 
 
 if __name__ == '__main__':
-    print('model.py')
     cmbertconfig = CMBertConfig(
         hidden_dropout_prob = 0.1
         )
@@ -205,10 +253,5 @@ if __name__ == '__main__':
 
     tokenized['audio_data'] = torch.ones(tokenized['input_ids'].shape[0], tokenized['input_ids'].shape[1], 74)
     
-    # print(sentences)
-    print(tokenized['audio_data'].shape)
-    print(tokenized['input_ids'].shape)
-
 
     output, _, _ = classifier(**tokenized)
-    print(output)

@@ -1,6 +1,7 @@
 import sys
 import os
 from collections import defaultdict
+import json
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -20,6 +21,7 @@ class SDKDatasets(dict):
 
     def __init__(self):
         super(SDKDatasets, self).__init__()
+        self['SDK_PATH'] = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK'
         self['CMUMOSI'] = {}
         self['CMUMOSEI'] = {}
         self['POM'] = {}
@@ -131,11 +133,7 @@ class CmuDatasetConfig():
         else:
             self.ds_path = os.path.join(sdkpath, self.dataset)
 
-        self.feature_names = {
-            # 'text_feat' : text_features,
-            # 'audio_feat' : audio_features,
-            # 'visual_feat' : visual_features,
-        }
+        self.feature_names = {}
         self.feature_names['text_feat'] = text_features
         if audio_features:
             self.feature_names['audio_feat'] = audio_features
@@ -145,6 +143,18 @@ class CmuDatasetConfig():
         self.labels = labels
         self.preprocess = preprocess
         self.load_preprocessed = load_preprocessed
+
+
+    # def __str__(self) -> str:
+    #     # d = {}
+    #     # str_val = "{"
+    #     # for key, value in self.__dict__.items():
+    #     #     str_val += '"' + str(key) + '": '
+    #     #     str_val += '"' + str(value) + '",'
+    #     #     # d[key]
+    #     # str_val += "}"
+    #     str_val = json.dumps(self.__dict__)
+    #     return str_val
 
 class CmuDataset(Dataset):
 
@@ -161,6 +171,8 @@ class CmuDataset(Dataset):
             self.dataset = ds
         else:
             self.dataset, self.labels_ds = self.load_data()
+
+        
 
         if config.load_preprocessed:
             self._standardize_loaded_data()
@@ -235,6 +247,21 @@ class CmuDataset(Dataset):
         for feat in dictdata.keys():
             self.dataset.computational_sequences[feat] = dictdata[feat]
             # self.dataset.computational_sequences[feat] = features[feat]
+
+    def replace_inf_and_nan_values(self, value=0):
+        """
+        """
+
+        for fold in self.dataset.keys():
+            ds = self.dataset[fold]
+            for feat in [f for f in ds.keys() if f != self.feature_names['text_feat']]:
+                for segid in ds[feat].keys():
+                    features = ds[feat][segid]['features']
+                    isnan = np.isnan(features)
+                    isinf = np.bitwise_not(np.isfinite(features))
+                    ds[feat][segid]['features'][isnan] = value
+                    ds[feat][segid]['features'][isinf] = value
+
 
 
     def _cut_to_n_videos(self, n=10):
@@ -494,9 +521,6 @@ class CmuDataset(Dataset):
         """
         """
         if num_classes == 2:
-            print(self.labels_name)
-            print(self.dataset.keys())
-            print(self.labels_ds.keys())
             if self.labels_name in self.dataset.keys():
                 ds = self.dataset
                 self._labels_2_class(ds, num_classes=num_classes)
