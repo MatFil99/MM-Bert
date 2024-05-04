@@ -22,7 +22,7 @@ criterion = {
 optimizer = ['adamw'] # ['adamw', 'adam', 'rmsprop']
 lr = [1e-5] # , 2e-5, 4e-5]
 scheduler_type = ['linear'] # ['linear', 'constant'] # ['linear', 'cosine', 'cosine_with_restarts', 'polynomial', 'constant', 'constant_with_warmup', 'inverse_sqrt', 'reduce_lr_on_plateau', 'cosine_with_min_lr', 'warmup_stable_decay']
-num_warmup_steps = [0] #
+warmup_steps_ratio = [0.0] #
 best_model_metric = {
     'classification': ['accuracy'], # ['accuracy', 'f1', 'loss']
     'regression': ['mse'] #, 'mae'] # ['mse', 'pearsonr', 'loss']

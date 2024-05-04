@@ -47,7 +47,7 @@ def main_single_run(args):
         optimizer = model_config.optimizer,
         lr = model_config.lr,
         scheduler_type = model_config.scheduler_type,
-        num_warmup_steps = model_config.num_warmup_steps,
+        warmup_steps_ratio = model_config.warmup_steps_ratio,
         save_best_model = model_config.save_best_model,
         save_model_dest = model_config.save_model_dest
     )
@@ -106,7 +106,7 @@ def permute_run_params():
     optimizer = runs_config.optimizer
     lr = runs_config.lr
     scheduler_type = runs_config.scheduler_type
-    num_warmup_steps = runs_config.num_warmup_steps
+    warmup_steps_ratio = runs_config.warmup_steps_ratio
     best_model_metric = runs_config.best_model_metric
     save_best_model = runs_config.save_best_model
     save_model_dest = runs_config.save_model_dest
@@ -127,7 +127,7 @@ def permute_run_params():
         optimizer,
         lr,
         scheduler_type,
-        num_warmup_steps,
+        warmup_steps_ratio,
         best_model_metric['classification'],
         save_best_model,
         save_model_dest
@@ -149,7 +149,7 @@ def permute_run_params():
         optimizer,
         lr,
         scheduler_type,
-        num_warmup_steps,
+        warmup_steps_ratio,
         best_model_metric['regression'],
         save_best_model,
         save_model_dest
@@ -265,22 +265,22 @@ if __name__ == '__main__':
     parser.add_argument('--version', action='version', version='%(prog)s 1.0')
 
 # arguments for single run
-    parser.add_argument('--ds', metavar='dataset', type=str,
+    parser.add_argument('-ds', metavar='dataset', type=str,
                         choices=['cmumosi', 'cmumosei', 'pom'],
                         help='dataset for training and testing model'
                         )
 
-    parser.add_argument('--t', dest='text_feat', metavar='text features', type=str,
+    parser.add_argument('-t', dest='text_feat', metavar='text features', type=str,
                         choices=['RAWTEXT'], default='RAWTEXT',
                         help='text features used for training and testing model'
                         )
 
-    parser.add_argument('--a', dest='audio_feat', metavar='audio features', type=str,
+    parser.add_argument('-a', dest='audio_feat', metavar='audio features', type=str,
                         choices=['COVAREP'], 
                         help='audio features used for training and testing model'
                         )
     
-    parser.add_argument('--v', dest='visual_feat', metavar='visual features', type=str,
+    parser.add_argument('-v', dest='visual_feat', metavar='visual features', type=str,
                         choices=['FACET42', 'OPENFACE2'],
                         help='visual features used for training and testing model'
                         )
