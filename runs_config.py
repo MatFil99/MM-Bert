@@ -9,7 +9,7 @@ encoder_checkpoints = ['distilbert/distilbert-base-uncased'] # , 'google-bert/be
 hidden_dropout_prob = [0.1, 0.2]
 modality_att_dropout_prob = [0.3]
 hidden_size = [768] # depends on chosen encoder, for these it is the same
-projection_size = [60, 768] # , 90] #
+projection_size = [30, 768] # , 90] #
 num_labels = [1, 2, 7] 
 
 # training arguments
