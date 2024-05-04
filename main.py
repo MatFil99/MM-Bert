@@ -192,7 +192,7 @@ def main_multirun(args):
                 optimizer,
                 lr,
                 scheduler_type,
-                num_warmup_steps,
+                warmup_steps_ratio,
                 best_model_metric,
                 save_best_model,
                 save_model_dest
@@ -215,8 +215,8 @@ def main_multirun(args):
                 audio_features = audio_features,
                 visual_features = visual_features,
                 labels = labels,
-                preprocess = args.preprocess,
-                load_preprocessed = args.load_preprocessed,
+                preprocess = False,
+                load_preprocessed = True,
             )
 
             training_arguments = train.TrainingArgs(
@@ -226,7 +226,7 @@ def main_multirun(args):
                 optimizer = optimizer,
                 lr = lr,
                 scheduler_type = scheduler_type,
-                num_warmup_steps = num_warmup_steps,
+                warmup_steps_ratio = warmup_steps_ratio,
                 save_best_model = save_best_model,
                 save_model_dest = save_model_dest
             )
