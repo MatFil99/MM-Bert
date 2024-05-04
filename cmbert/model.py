@@ -33,8 +33,10 @@ class CMBertConfig(BertConfig):
         self.audio_feat_size = audio_feat_size
         self.visual_feat_size = visual_feat_size
         self.projection_size = projection_size
-        self.num_labels = num_labels
+        self.num_classes = num_labels
         self.best_model_metric = best_model_metric
+
+    
 
 class ModalityAttention(nn.Module):
 
@@ -63,17 +65,10 @@ class ModalityAttention(nn.Module):
             self.proj_v = None
             self.visual_weight_1 = None
 
-            # self.proj_a = None
-        # self.proj_v = nn.Conv1d(config.visual_feat_size, config.projection_size, kernel_size=1, padding=0, bias=False)
-
         self.activation = nn.ReLU()
         self.text_weight_1 = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
-        
-        # self.visual_weight_1 = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
-        self.bias = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
         self.text_weight_1.data.fill_(1)
-        
-        # self.visual_weight_1.data.fill_(1)
+        self.bias = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True)
         self.bias.data.fill_(0)
         self.softmax = nn.Softmax(dim=-1)
 
@@ -94,13 +89,14 @@ class ModalityAttention(nn.Module):
         text_data = text_data.transpose(1,2) # back to previous shape
         text_data_1 = text_data.reshape(-1).detach() # text_data.reshape(-1).cpu().detach().numpy() # ?
         weights = torch.sqrt(torch.norm(text_data_1, p=2))
-        text_data = text_data / weights
+        text_data = text_data/weights
         
         if self.audio_modality:
             # audio projection
-            audio_data = audio_data.transpose(-1,-2)
+            audio_data = audio_data.transpose(1,2)
             audio_data = self.proj_a(audio_data)
-            audio_data = audio_data.transpose(-1,-2)
+            audio_data = audio_data.transpose(1,2)
+
             # normalization was added
             audio_data_1 = audio_data.reshape(-1).detach() # 
             weights = torch.sqrt(torch.norm(audio_data_1, p=2))
@@ -163,25 +159,21 @@ class CMBertForSequenceClassification(DistilBertPreTrainedModel):
     def __init__(self, config): #, num_labels=2):
         super(CMBertForSequenceClassification, self).__init__(config)
 
-        self.num_labels = config.num_labels # COMMENT
         self.config = config
 
         self.encoder = AutoModel.from_pretrained(config.encoder_checkpoint)
-        # self.distilbert = AutoModel.from_pretrained(checkpoint)
-        
         if config.audio_feat_size or config.visual_feat_size:
             self.modality_fusion = ModalityAttention(config)
         else:
             self.modality_fusion = None
-
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        
-        self.pre_classifier = nn.Linear(config.hidden_size, config.hidden_size)
-        
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.classifier = nn.Linear(config.hidden_size, config.num_classes)
 
         # Initialize weights and apply final processing
+        
         self.post_init()
+        if self.modality_fusion:
+            self.freeze_params()
 
     def forward(
         self,
@@ -193,46 +185,37 @@ class CMBertForSequenceClassification(DistilBertPreTrainedModel):
         labels: Optional[torch.LongTensor] = None,
     ): # -> Union[Tuple[torch.Tensor], SequenceClassifierOutput]:
         
-        if self.config.encoder_checkpoint == 'distilbert/distilbert-base-uncased':
-            outputs = self.encoder(
-                input_ids,
-                attention_mask=attention_mask,
-            )
-            hidden_states = outputs[0]
-            pooled_output = outputs[0][:,0] # last of hidden state
-        elif self.config.encoder_checkpoint == 'google-bert/bert-base-uncased':
-            outputs = self.encoder(
-                input_ids,
-                attention_mask=attention_mask,
-            )
-            hidden_states = outputs[0]
-            pooled_output = outputs[0][:,0]
-            # pooled_output = outputs[1]
+        
+        outputs = self.encoder(
+            input_ids,
+            attention_mask=attention_mask,
+        )
+        hidden_states = outputs[0]
 
+        text_att = None
+        fusion_att = None
         if self.modality_fusion:
             hidden_states, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, visual_data, attention_mask)
     
         pooled_output = hidden_states[:,0] # 
-
         pooled_output = self.dropout(pooled_output)
-
-        pooled_output = self.pre_classifier(pooled_output)
-        pooled_output = nn.ReLU()(pooled_output) #
-
-        # pooled_output = self.dropout(pooled_output)
-
         logits = self.classifier(pooled_output)
 
-        return {'logits': logits,'text_att': None,'fusion_att': None}
-        # , text_att, fusion_att
-        return SequenceClassifierOutput(
-            loss=loss,
-            logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-        )
+        return {'logits': logits,'text_att': text_att,'fusion_att': fusion_att}
 
+    def freeze_params(self):
+        if self.config.encoder_checkpoint == 'google-bert/bert-base-uncased':
+            encoder_layer = 'encoder.layer.'
+        else:
+            encoder_layer = 'transformer.layer.'
 
+        for name, param in self.named_parameters():
+            param.requires_grad = False
+            for i in range(12):
+                if encoder_layer + str(i) in name:
+                    param.requires_grad = True
+            if 'modality_fusion' in name or 'pooler' in name:
+                param.requires_grad = True
 
 if __name__ == '__main__':
     cmbertconfig = CMBertConfig(

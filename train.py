@@ -25,7 +25,7 @@ class TrainingArgs():
                  optimizer = 'adamw',
                  lr = 2e-5,
                  scheduler_type = 'linear',
-                 num_warmup_steps = 0,
+                 warmup_steps_ratio = 0.0,
                  best_model_metric = 'accuracy',
                  best_model_path = None,
                  save_best_model = False,
@@ -37,7 +37,7 @@ class TrainingArgs():
         self.optimizer = optimizer
         self.lr = lr
         self.scheduler_type = scheduler_type
-        self.num_warmup_steps = num_warmup_steps
+        self.warmup_steps_ratio = warmup_steps_ratio
         self.best_model_metric = best_model_metric
         self.save_best_model = save_best_model
         self.best_model_path = best_model_path
@@ -201,44 +201,66 @@ def save_result(result, path):
         
 
 def main(dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl'):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
     torch.manual_seed(seed)
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if device == torch.device('cuda'):
+        torch.cuda.manual_seed_all(seed)
+    
 
     # dataset
     ds = cmbert.CmuDataset(dataset_config)
     
     # model
     model = cmbert.CMBertForSequenceClassification(config=model_config)
-    if model_config.num_labels == 1:
+    if model_config.num_classes == 1:
         task = 'r'
-    elif model_config.num_labels == 2:
+    elif model_config.num_classes == 2:
         task = 'c2'
-    elif model_config.num_labels == 7:
+    elif model_config.num_classes == 7:
         task = 'c7'
 
     # split data into train, valid, test datasets
-    train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds, num_labels=model_config.num_labels)
+    train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds, num_labels=model_config.num_classes)
 
     batch_size = training_arguments.batch_size
     criterion = get_criterion(training_arguments.criterion)
+
+    # Prepare optimizer
+    if ('audio_feat' in dataset_config.feature_names 
+        or 'visual_feat' in dataset_config.feature_names):
+        param_optimizer = list(model.named_parameters())
+        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight', 'norm.bias', 'norm.weight']
+        new_decay = ['modality_fusion']
+
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay) and not any(np in n for np in new_decay)], 'weight_decay': 0.01},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0},
+            {'params':[p for n, p in param_optimizer if not any(nd in n for nd in no_decay )and any(np in n for np in new_decay)],'lr':0.01}
+        ]
+
+        parameters = optimizer_grouped_parameters
+    else:
+        parameters = model.parameters()
+
+
     optimizer = get_optimizer(
         optimizer_name=training_arguments.optimizer, 
-        params=model.parameters(), 
+        params=parameters,
         lr=training_arguments.lr
         )
     
     model.to(device)
     criterion.to(device)
 
-    data_collator = MultiModalDataCollator(checkpoint=model_config.encoder_checkpoint, num_labels=model_config.num_labels, device=device)
+    data_collator = MultiModalDataCollator(checkpoint=model_config.encoder_checkpoint, num_labels=model_config.num_classes, device=device)
     train_dataloader = DataLoader(train_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     valid_dataloader = DataLoader(valid_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(test_ds, batch_size=batch_size, collate_fn=data_collator)
     
 
-    if model_config.num_labels == 1: # regression
+    if model_config.num_classes == 1: # regression
         metrics = ['mse', 'mae', 'pearsonr']
     else: # classification
         metrics = ['accuracy', 'f1']
@@ -249,9 +271,11 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     lr_scheduler = get_scheduler(
         name=training_arguments.scheduler_type,
         optimizer=optimizer,
-        num_warmup_steps=training_arguments.num_warmup_steps,
+        num_warmup_steps=training_arguments.warmup_steps_ratio * num_training_steps,
         num_training_steps=num_training_steps,
     )
+
+    print(model_config)
 
     best_model, train_loss, valid_eval = train(
         model=model,
@@ -295,8 +319,6 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
         'valid_eval': valid_eval,
         'test_eval': calculated_metrics,
     }
-
-    # print(results_path)
 
     save_result(result, results_path)
 
