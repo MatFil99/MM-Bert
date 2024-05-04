@@ -83,6 +83,7 @@ def main_single_run(args):
         model_config=_model_config,
         training_arguments=training_arguments,
         results_path=results_path,
+        dsdeploy=args.dsdeploy,
         )
 
 def permute_run_params():
@@ -248,6 +249,7 @@ def main_multirun(args):
                 model_config=_model_config,
                 training_arguments=training_arguments,
                 results_path=results_path,
+                dsdeploy=args.dsdeploy,
                 )
 
 
@@ -276,7 +278,7 @@ if __name__ == '__main__':
                         )
 
     parser.add_argument('-a', dest='audio_feat', metavar='audio features', type=str,
-                        choices=['COVAREP'], 
+                        choices=['COVAREP', 'OPENSMILE'], # OPENSMILE only for cmumosi
                         help='audio features used for training and testing model'
                         )
     

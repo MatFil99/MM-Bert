@@ -200,7 +200,7 @@ def save_result(result, path):
         fd.write('\n')
         
 
-def main(dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl'):
+def main(dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
@@ -211,6 +211,8 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
 
     # dataset
     ds = cmbert.CmuDataset(dataset_config)
+    if dsdeploy:
+        ds.deploy()
     
     # model
     model = cmbert.CMBertForSequenceClassification(config=model_config)
@@ -275,7 +277,7 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
         num_training_steps=num_training_steps,
     )
 
-    print(model_config)
+    # print(model_config)
 
     best_model, train_loss, valid_eval = train(
         model=model,

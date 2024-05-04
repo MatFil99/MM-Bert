@@ -103,11 +103,11 @@ class ModalityAttention(nn.Module):
             audio_data = audio_data / weights
 
             # attention
-            audio_att = torch.matmul(audio_data, audio_data.transpose(-1, -2))
-            audio_att = self.activation(audio_att)
-            audio_att_weighted = audio_att * self.audio_weight_1
+            text_x_audio_att = torch.matmul(text_data, audio_data.transpose(-1, -2))
+            text_x_audio_att = self.activation(text_x_audio_att)
+            text_x_audio_att_weighted = text_x_audio_att * self.audio_weight_1
         else:
-            audio_att_weighted = 0
+            text_x_audio_att_weighted = 0
 
         if self.visual_modality:
             # visual projection
@@ -120,11 +120,11 @@ class ModalityAttention(nn.Module):
             visual_data = visual_data / weights
 
             # attention
-            visual_att = torch.matmul(visual_data, visual_data.transpose(-1, -2))
-            visual_att = self.activation(visual_att)
-            visual_att_weighted = visual_att * self.visual_weight_1
+            text_x_visual_att = torch.matmul(text_data, visual_data.transpose(-1, -2))
+            text_x_visual_att = self.activation(text_x_visual_att)
+            text_x_visual_att_weighted = text_x_visual_att * self.visual_weight_1
         else:
-            visual_att_weighted = 0
+            text_x_visual_att_weighted = 0
 
 
         # text attention
@@ -135,20 +135,24 @@ class ModalityAttention(nn.Module):
         bias = self.bias
 
         # fusion_att = text_weight_1 * text_att1 + audio_weight_1 * audio_att + visual_weight_1 * visual_att + bias
-        fusion_att = text_att_weighted + audio_att_weighted + visual_att_weighted + bias
+        fusion_att = text_x_audio_att_weighted + text_x_visual_att_weighted + bias
+        # fusion_att = text_att_weighted + text_x_audio_att_weighted + text_x_visual_att_weighted + bias
+        
         fusion_att1 = self.activation(fusion_att)
         fusion_att = fusion_att + att_mask_final
         fusion_att = self.softmax(fusion_att)
         fusion_att = self.dropout1(fusion_att)
 
         # there could be used other approaches
-        fusion_data = torch.matmul(fusion_att, hidden_states) 
+        fusion_data = torch.matmul(fusion_att, hidden_states)
         fusion_data = fusion_data + hidden_states
 
         # norm
         hidden_states_new = self.dense(fusion_data)
         hidden_states_new = self.dropout(hidden_states_new)
         hidden_states_new = self.norm(hidden_states_new)
+
+        hidden_states_new = fusion_data
 
         return hidden_states_new, text_att, fusion_att1
 

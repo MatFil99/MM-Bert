@@ -39,14 +39,14 @@ class SDKDatasets(dict):
             'feat_size': 74,
             'modality': 'audio'
         }
+        self['CMUMOSI']['OPENSMILE'] = {
+            'featuresname': 'CMU_MOSI_openSMILE_IS09',
+            'feat_size': 384,
+            'modality': 'audio'
+        }
         self['CMUMOSI']['FACET42'] = {
             'featuresname': 'CMU_MOSI_Visual_Facet_42',
             'feat_size': 35,
-            'modality': 'visual'
-        }
-        self['CMUMOSI']['OPENFACE2'] = {
-            'featuresname': 'CMU_MOSI_Visual_OpenFace_2',
-            'feat_size': 709, # after selection just useful features
             'modality': 'visual'
         }
         self['CMUMOSI']['LABELS'] = {
@@ -83,31 +83,31 @@ class SDKDatasets(dict):
         }
 
         # POM
-        self['CMUMOSEI']['RAWTEXT'] = {
-            'filename': 'POM_TimestampedWords.csd',
-            'feat_size': 1,
-            'modality': 'rawtext'
-        }
-        self['CMUMOSEI']['COVAREP'] = {
-            'filename': 'POM_COVAREP.csd',
-            'feat_size': 43,
-            'modality': 'audio'
-        }
-        self['CMUMOSEI']['FACET42'] = {
-            'filename': 'POM_Facet_42.csd',
-            'feat_size': 35,
-            'modality': 'visual'
-        }
-        self['CMUMOSEI']['OPENFACE2'] = {
-            'filename': 'POM_OpenFace2.csd',
-            'feat_size': 708, # after selection just useful features
-            'modality': 'visual'
-        }
-        self['CMUMOSEI']['LABELS'] = {
-            'filename': 'POM_Labels.csd',
-            'feat_size': 1,
-            'modality': 'label'
-        }
+        # self['POM']['RAWTEXT'] = {
+        #     'featuresname': 'POM_TimestampedWords',
+        #     'feat_size': 1,
+        #     'modality': 'rawtext'
+        # }
+        # self['POM']['COVAREP'] = {
+        #     'featuresname': 'POM_COVAREP',
+        #     'feat_size': 43,
+        #     'modality': 'audio'
+        # }
+        # self['POM']['FACET42'] = {
+        #     'featuresname': 'POM_Facet_42',
+        #     'feat_size': 35,
+        #     'modality': 'visual'
+        # }
+        # self['POM']['OPENFACE2'] = {
+        #     'featuresname': 'POM_OpenFace2',
+        #     'feat_size': 708, # after selection just useful features
+        #     'modality': 'visual'
+        # }
+        # self['POM']['LABELS'] = {
+        #     'featuresname': 'POM_Labels',
+        #     'feat_size': 1,
+        #     'modality': 'label'
+        # }
 
 SDK_DS = SDKDatasets()
 
@@ -144,18 +144,6 @@ class CmuDatasetConfig():
         self.preprocess = preprocess
         self.load_preprocessed = load_preprocessed
 
-
-    # def __str__(self) -> str:
-    #     # d = {}
-    #     # str_val = "{"
-    #     # for key, value in self.__dict__.items():
-    #     #     str_val += '"' + str(key) + '": '
-    #     #     str_val += '"' + str(value) + '",'
-    #     #     # d[key]
-    #     # str_val += "}"
-    #     str_val = json.dumps(self.__dict__)
-    #     return str_val
-
 class CmuDataset(Dataset):
 
     def __init__(self, config, ds=None):
@@ -172,23 +160,38 @@ class CmuDataset(Dataset):
         else:
             self.dataset, self.labels_ds = self.load_data()
 
-        
-
         if config.load_preprocessed:
             self._standardize_loaded_data()
+
+        # # print(f'labels liczba segmentow: {len(self.dataset[self.labels_name].keys())}')
+        # print(f'text_feat liczba segmentow: {len(self.dataset[self.feature_names["text_feat"]].keys())}')
+        # # print(f'visual_feat liczba segmentow: {len(self.dataset[self.feature_names["visual_feat"]].keys())}')
+        # print(f'audio_feat liczba segmentow: {len(self.dataset[self.feature_names["audio_feat"]].keys())}')
+        
 
         if config.preprocess and not ds and not config.load_preprocessed:
             # for testing
             # self._cut_to_n_videos(10)
-
+            # self.remove_unmatched_segments()
+            
             self.align_features(mode='text_feat')
+            # print(f'text_feat liczba segmentow: {len(self.dataset[self.feature_names["text_feat"]].keys())}')
+            # # print(f'visual_feat liczba segmentow: {len(self.dataset[self.feature_names["visual_feat"]].keys())}')
+            # print(f'audio_feat liczba segmentow: {len(self.dataset[self.feature_names["audio_feat"]].keys())}')
+
             self.remove_special_text_tokens(keep_aligned=True)
             self.append_labels_to_dataset() # append labels to dataset and then align data to labels
             self.align_to_labels()
+            # self.remove_unmatched_segments()
             self.preprocessed = config.preprocess
         
         if config.load_preprocessed:
             self.append_labels_to_dataset()
+
+        # print(f'labels liczba segmentow: {len(self.dataset[self.labels_name].keys())}')
+        # print(f'text_feat liczba segmentow: {len(self.dataset[self.feature_names["text_feat"]].keys())}')
+        # # print(f'visual_feat liczba segmentow: {len(self.dataset[self.feature_names["visual_feat"]].keys())}')
+        # print(f'audio_feat liczba segmentow: {len(self.dataset[self.feature_names["audio_feat"]].keys())}')
             
         
     @classmethod
@@ -342,7 +345,7 @@ class CmuDataset(Dataset):
         segments = []
         for feat in self.dataset.keys():
             segments.extend(list(self.dataset[feat].keys()))
-        if not self.preprocessed:
+        if not self.labels_name in self.dataset.keys():
             segments.extend(self.labels_ds.keys())
         return set(segments)
 
@@ -432,10 +435,16 @@ class CmuDataset(Dataset):
         """
         """
         
-        if self.preprocessed:
+        # if self.preprocessed:
+        #     segments = ds[self.labels_name].keys()
+        # else:
+        #     segments = self.labels_ds[self.labels_name].keys()
+        if self.labels_name in ds.keys():
             segments = ds[self.labels_name].keys()
         else:
             segments = self.labels_ds[self.labels_name].keys()
+
+
 
         features = {feat: [] for feat in list(self.feature_names.keys()) + ['labels']}
         # labels = []
