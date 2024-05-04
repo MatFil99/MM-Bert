@@ -1,6 +1,7 @@
 import sys
 import os
 from collections import defaultdict
+import json
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -20,6 +21,7 @@ class SDKDatasets(dict):
 
     def __init__(self):
         super(SDKDatasets, self).__init__()
+        self['SDK_PATH'] = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK'
         self['CMUMOSI'] = {}
         self['CMUMOSEI'] = {}
         self['POM'] = {}
@@ -142,6 +144,18 @@ class CmuDatasetConfig():
         self.preprocess = preprocess
         self.load_preprocessed = load_preprocessed
 
+
+    # def __str__(self) -> str:
+    #     # d = {}
+    #     # str_val = "{"
+    #     # for key, value in self.__dict__.items():
+    #     #     str_val += '"' + str(key) + '": '
+    #     #     str_val += '"' + str(value) + '",'
+    #     #     # d[key]
+    #     # str_val += "}"
+    #     str_val = json.dumps(self.__dict__)
+    #     return str_val
+
 class CmuDataset(Dataset):
 
     def __init__(self, config, ds=None):
@@ -157,6 +171,8 @@ class CmuDataset(Dataset):
             self.dataset = ds
         else:
             self.dataset, self.labels_ds = self.load_data()
+
+        
 
         if config.load_preprocessed:
             self._standardize_loaded_data()
@@ -505,9 +521,6 @@ class CmuDataset(Dataset):
         """
         """
         if num_classes == 2:
-            print(self.labels_name)
-            print(self.dataset.keys())
-            print(self.labels_ds.keys())
             if self.labels_name in self.dataset.keys():
                 ds = self.dataset
                 self._labels_2_class(ds, num_classes=num_classes)

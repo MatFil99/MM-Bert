@@ -1,5 +1,6 @@
 from collections import defaultdict
 import copy 
+import json
 
 import numpy as np
 import torch
@@ -14,15 +15,6 @@ from transformers import AutoModel, AutoTokenizer, BertModel, PreTrainedModel, B
 
 import cmbert
 from mmsdk.mmdatasdk.dataset.standard_datasets.CMU_MOSI import cmu_mosi_std_folds as standard_folds
-# import multimodal_tokenizer
-
-# def print_batch(batch):
-#     print(f"input_ids shape: {batch['input_ids'].shape}")
-#     print(f"audio_data shape: {batch['audio_data'].shape}")
-#     print(f"visual_data shape: {batch['visual_data'].shape}")
-#     print(f"labels shape: {batch['labels'].shape}")
-#     print(f"last batch: {batch.keys()}")
-#     print(f"labels cuda: {batch['labels'].is_cuda}")
 
 class TrainingArgs():
 
@@ -51,6 +43,8 @@ class TrainingArgs():
         self.best_model_path = best_model_path
         self.save_model_dest = save_model_dest
 
+    def __str__(self) -> str:
+        return str(self.__dict__.items())
 
 class MultiModalDataCollator():
 
@@ -122,14 +116,14 @@ def evaluation(model, dataloader, criterion, metrics_names, task):
 
         calculated_metrics = {}
         for name, metric in metrics.items():
-            # if not binary classification nor regression
+            # if neighter binary classification nor regression
             if task not in ['c2', 'r'] and name in ['f1']:
                 metric_evaluation = metric.compute(average='weighted')
             else:
                 metric_evaluation = metric.compute()
             calculated_metrics.update(metric_evaluation)
 
-        calculated_metrics['loss'] = loss
+        calculated_metrics['loss'] = loss.item()
 
     return calculated_metrics
 
@@ -138,6 +132,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
     num_training_steps = num_epochs * len(train_dataloader)
     progress_bar = tqdm(range(num_training_steps))
     train_loss = []
+    valid_eval = []
 
     best_model = copy.deepcopy(model)
     best_eval = 0.0
@@ -175,7 +170,10 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
             best_model = copy.deepcopy(model)
             best_eval = valid_evaluation[best_model_metric]
 
-    return best_model
+        train_loss.append(cum_loss)
+        valid_eval.append(valid_evaluation)
+
+    return best_model, train_loss, valid_eval
 
 def get_criterion(criterion_name):
     if criterion_name == 'crossentropyloss':
@@ -196,13 +194,18 @@ def get_optimizer(optimizer_name, **kwargs):
     elif optimizer_name == 'adadelta':
         return Adadelta(**kwargs)
 
+def save_result(result, path):
+    with open(path, 'a+') as fd:
+        json.dump(result, fd)
+        fd.write('\n')
+        
 
-def main(dataset_config, model_config, training_arguments):
+def main(dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl'):
     seed = 7
     transformers.set_seed(seed)
     torch.manual_seed(seed)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    
+
     # dataset
     ds = cmbert.CmuDataset(dataset_config)
     
@@ -250,7 +253,7 @@ def main(dataset_config, model_config, training_arguments):
         num_training_steps=num_training_steps,
     )
 
-    best_model = train(
+    best_model, train_loss, valid_eval = train(
         model=model,
         train_dataloader=train_dataloader,
         valid_dataloader=valid_dataloader,
@@ -272,7 +275,7 @@ def main(dataset_config, model_config, training_arguments):
         best_model.save_pretrained(
             save_directory=full_path,
             state_dict=best_model.state_dict(),
-        )        
+        )
 
     calculated_metrics = evaluation(
         model=best_model, 
@@ -283,3 +286,20 @@ def main(dataset_config, model_config, training_arguments):
         )
 
     print(calculated_metrics)
+
+    result = {
+        'dataset_config': dataset_config.__dict__,
+        'training_arguments': training_arguments.__dict__,
+        'model_config': model_config.__dict__,
+        'train_loss': train_loss,
+        'valid_eval': valid_eval,
+        'test_eval': calculated_metrics,
+    }
+
+    # print(results_path)
+
+    save_result(result, results_path)
+
+    # print(f'text_weight_1: {best_model.modality_fusion.text_weight_1}')
+    # print(f'audio_weight_1: {best_model.modality_fusion.audio_weight_1}')
+    # print(f'visual_weight_1: {best_model.modality_fusion.visual_weight_1}')
