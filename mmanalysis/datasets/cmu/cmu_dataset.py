@@ -1,148 +1,103 @@
+# standard packages
 import sys
 import os
 from collections import defaultdict
 import json
 
+# installed packages
 import numpy as np
 from torch.utils.data import Dataset
 
-# from utils import *
-from .utils import *
 
+# package imports
+from .configuration_cmu import CmuDatasetConfig
 
-SDKPATH = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK'
-sys.path.append(SDKPATH)
+from . import (
+    UTILS_PATH,
+    SDK_DS
+)
+
+# import utils
+sys.path.append(UTILS_PATH)
+from utils import (
+    avg,
+    bword_vector_2_sentence,
+)
+
 # import mmsdk
+SDKPATH= SDK_DS['SDK_PATH']
+sys.path.append(SDKPATH)
 from mmsdk import mmdatasdk as md
 from mmsdk.mmdatasdk.configurations.metadataconfigs import featuresetMetadataTemplate
 
 
-class SDKDatasets(dict):
+# class SDKDatasets(dict):
 
-    def __init__(self):
-        super(SDKDatasets, self).__init__()
-        self['SDK_PATH'] = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK'
-        self['CMUMOSI'] = {}
-        self['CMUMOSEI'] = {}
-        self['POM'] = {}
-        self.initialize_datasets_config()
+#     def __init__(self):
+#         super(SDKDatasets, self).__init__()
+#         self['SDK_PATH'] = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK'
+#         self['CMUMOSI'] = {}
+#         self['CMUMOSEI'] = {}
+#         self.initialize_datasets_config()
 
-    def initialize_datasets_config(self):
-        # CMUMOSI
-        self['CMUMOSI']['RAWTEXT'] = {
-            'featuresname': 'CMU_MOSI_TimestampedWords',
-            'feat_size': 1,
-            'modality': 'rawtext'
-        }
-        self['CMUMOSI']['COVAREP'] = {
-            'featuresname': 'CMU_MOSI_COVAREP',
-            'feat_size': 74,
-            'modality': 'audio'
-        }
-        self['CMUMOSI']['OPENSMILE'] = {
-            'featuresname': 'CMU_MOSI_openSMILE_IS09',
-            'feat_size': 384,
-            'modality': 'audio'
-        }
-        self['CMUMOSI']['FACET42'] = {
-            'featuresname': 'CMU_MOSI_Visual_Facet_42',
-            'feat_size': 35,
-            'modality': 'visual'
-        }
-        self['CMUMOSI']['LABELS'] = {
-            'featuresname': 'CMU_MOSI_Opinion_Labels',
-            'feat_size': 1,
-            'modality': 'label'
-        }
+#     def initialize_datasets_config(self):
+#         # CMUMOSI
+#         self['CMUMOSI']['RAWTEXT'] = {
+#             'featuresname': 'CMU_MOSI_TimestampedWords',
+#             'feat_size': 1,
+#             'modality': 'rawtext'
+#         }
+#         self['CMUMOSI']['COVAREP'] = {
+#             'featuresname': 'CMU_MOSI_COVAREP',
+#             'feat_size': 74,
+#             'modality': 'audio'
+#         }
+#         self['CMUMOSI']['OPENSMILE'] = {
+#             'featuresname': 'CMU_MOSI_openSMILE_IS09',
+#             'feat_size': 384,
+#             'modality': 'audio'
+#         }
+#         self['CMUMOSI']['FACET42'] = {
+#             'featuresname': 'CMU_MOSI_Visual_Facet_42',
+#             'feat_size': 35,
+#             'modality': 'visual'
+#         }
+#         self['CMUMOSI']['LABELS'] = {
+#             'featuresname': 'CMU_MOSI_Opinion_Labels',
+#             'feat_size': 1,
+#             'modality': 'label'
+#         }
 
-        # CMUMOSEI
-        self['CMUMOSEI']['RAWTEXT'] = {
-            'featuresname': 'CMU_MOSEI_TimestampedWords',
-            'feat_size': 1,
-            'modality': 'rawtext'
-        }
-        self['CMUMOSEI']['COVAREP'] = {
-            'featuresname': 'CMU_MOSEI_COVAREP',
-            'feat_size': 74,
-            'modality': 'audio'
-        }
-        self['CMUMOSEI']['FACET42'] = {
-            'featuresname': 'CMU_MOSEI_VisualFacet42',
-            'feat_size': 35,
-            'modality': 'visual'
-        }
-        self['CMUMOSEI']['OPENFACE2'] = {
-            'featuresname': 'CMU_MOSEI_VisualOpenFace2',
-            'feat_size': 709, # after selection just useful features
-            'modality': 'visual'
-        }
-        self['CMUMOSEI']['LABELS'] = {
-            'featuresname': 'CMU_MOSEI_Labels',
-            'feat_size': 1,
-            'modality': 'label'
-        }
+#         # CMUMOSEI
+#         self['CMUMOSEI']['RAWTEXT'] = {
+#             'featuresname': 'CMU_MOSEI_TimestampedWords',
+#             'feat_size': 1,
+#             'modality': 'rawtext'
+#         }
+#         self['CMUMOSEI']['COVAREP'] = {
+#             'featuresname': 'CMU_MOSEI_COVAREP',
+#             'feat_size': 74,
+#             'modality': 'audio'
+#         }
+#         self['CMUMOSEI']['FACET42'] = {
+#             'featuresname': 'CMU_MOSEI_VisualFacet42',
+#             'feat_size': 35,
+#             'modality': 'visual'
+#         }
+#         self['CMUMOSEI']['OPENFACE2'] = {
+#             'featuresname': 'CMU_MOSEI_VisualOpenFace2',
+#             'feat_size': 709, # after selection just useful features
+#             'modality': 'visual'
+#         }
+#         self['CMUMOSEI']['LABELS'] = {
+#             'featuresname': 'CMU_MOSEI_Labels',
+#             'feat_size': 1,
+#             'modality': 'label'
+#         }
 
-        # POM
-        # self['POM']['RAWTEXT'] = {
-        #     'featuresname': 'POM_TimestampedWords',
-        #     'feat_size': 1,
-        #     'modality': 'rawtext'
-        # }
-        # self['POM']['COVAREP'] = {
-        #     'featuresname': 'POM_COVAREP',
-        #     'feat_size': 43,
-        #     'modality': 'audio'
-        # }
-        # self['POM']['FACET42'] = {
-        #     'featuresname': 'POM_Facet_42',
-        #     'feat_size': 35,
-        #     'modality': 'visual'
-        # }
-        # self['POM']['OPENFACE2'] = {
-        #     'featuresname': 'POM_OpenFace2',
-        #     'feat_size': 708, # after selection just useful features
-        #     'modality': 'visual'
-        # }
-        # self['POM']['LABELS'] = {
-        #     'featuresname': 'POM_Labels',
-        #     'feat_size': 1,
-        #     'modality': 'label'
-        # }
+# SDK_DS = SDKDatasets()
 
-SDK_DS = SDKDatasets()
 
-class CmuDatasetConfig():
-
-    def __init__(self,
-                 sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
-                 dataset = 'cmumosi',
-                 text_features = 'CMU_MOSI_TimestampedWords',
-                 audio_features = 'CMU_MOSI_COVAREP',
-                 visual_features = 'CMU_MOSI_Visual_Facet_42',
-                 labels = 'CMU_MOSI_Opinion_Labels',
-                 preprocess = True,
-                 load_preprocessed = False,
-                 ):
-        super(CmuDatasetConfig, self).__init__()
-
-        self.sdkpath = sdkpath
-        self.dataset = dataset.lower() #
-
-        if load_preprocessed:
-            self.ds_path = os.path.join(sdkpath, self.dataset, 'aligned')
-        else:
-            self.ds_path = os.path.join(sdkpath, self.dataset)
-
-        self.feature_names = {}
-        self.feature_names['text_feat'] = text_features
-        if audio_features:
-            self.feature_names['audio_feat'] = audio_features
-        if visual_features:
-            self.feature_names['visual_feat'] = visual_features
-
-        self.labels = labels
-        self.preprocess = preprocess
-        self.load_preprocessed = load_preprocessed
 
 class CmuDataset(Dataset):
 
