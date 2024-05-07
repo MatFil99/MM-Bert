@@ -2,9 +2,21 @@ import argparse
 import itertools
 from datetime import datetime
 
-import cmbert
-from cmbert import SDK_DS
-import train
+# from cmbert import SDK_DS
+
+import train_class
+
+# import mmanalysis.models.cmbert
+from mmanalysis.models.cmbert import CMBertConfig
+from mmanalysis.models.mmbert import MMBertConfig
+
+from mmanalysis.datasets.cmu import (
+    SDK_DS,
+    CmuDatasetConfig
+)
+
+# import mmanalysis.models.mmbert
+# mmanalysis.models.cmbert.CMBertConfig
 
 # parameters for single run
 import model_config
@@ -14,6 +26,7 @@ import runs_config
 
 def main_single_run(args):
     results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
+
     ds = args.ds.upper()
     text_features = SDK_DS[ds][args.text_feat]['featuresname']
     audio_features = None
@@ -29,8 +42,8 @@ def main_single_run(args):
         visual_features = SDK_DS[ds][args.visual_feat]['featuresname']
         visual_feat_size = SDK_DS[ds][args.visual_feat]['feat_size']
 
-    dataset_config = cmbert.CmuDatasetConfig(
-        sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
+    dataset_config = CmuDatasetConfig(
+        # sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
         dataset = ds,
         text_features = text_features,
         audio_features = audio_features,
@@ -40,7 +53,7 @@ def main_single_run(args):
         load_preprocessed = args.load_preprocessed,
     )
 
-    training_arguments = train.TrainingArgs(
+    training_arguments = train_class.TrainingArgs(
         batch_size = model_config.batch_size,
         num_epochs = model_config.num_epochs,
         criterion = model_config.criterion,
@@ -52,7 +65,8 @@ def main_single_run(args):
         save_model_dest = model_config.save_model_dest
     )
 
-    _model_config = cmbert.CMBertConfig(
+    _model_config = CMBertConfig(
+    # _model_config = MMBertConfig(
         encoder_checkpoint=model_config.encoder_checkpoint,
         modality_att_dropout_prob=model_config.modality_att_dropout_prob,
         hidden_dropout_prob=model_config.hidden_dropout_prob,
@@ -78,7 +92,7 @@ def main_single_run(args):
     # for debug
     # print(_model_config.best_model_metric)
 
-    train.main(
+    train_class.main(
         dataset_config=dataset_config,
         model_config=_model_config,
         training_arguments=training_arguments,
@@ -86,171 +100,171 @@ def main_single_run(args):
         dsdeploy=args.dsdeploy,
         )
 
-def permute_run_params():
-    """
-    """
-    # datasets = runs_config.datasets # independently
-    text_features = runs_config.text_features
-    audio_features = runs_config.audio_features
-    visual_features = runs_config.visual_features
+# def permute_run_params():
+#     """
+#     """
+#     # datasets = runs_config.datasets # independently
+#     text_features = runs_config.text_features
+#     audio_features = runs_config.audio_features
+#     visual_features = runs_config.visual_features
 
-    encoder_checkpoints = runs_config.encoder_checkpoints
-    hidden_dropout_prob = runs_config.hidden_dropout_prob
-    modality_att_dropout_prob = runs_config.modality_att_dropout_prob
-    hidden_size = runs_config.hidden_size
-    projection_size = runs_config.projection_size
-    num_labels = runs_config.num_labels
+#     encoder_checkpoints = runs_config.encoder_checkpoints
+#     hidden_dropout_prob = runs_config.hidden_dropout_prob
+#     modality_att_dropout_prob = runs_config.modality_att_dropout_prob
+#     hidden_size = runs_config.hidden_size
+#     projection_size = runs_config.projection_size
+#     num_labels = runs_config.num_labels
 
-    batch_size = runs_config.batch_size
-    num_epochs = runs_config.num_epochs
-    criterion = runs_config.criterion
-    optimizer = runs_config.optimizer
-    lr = runs_config.lr
-    scheduler_type = runs_config.scheduler_type
-    warmup_steps_ratio = runs_config.warmup_steps_ratio
-    best_model_metric = runs_config.best_model_metric
-    save_best_model = runs_config.save_best_model
-    save_model_dest = runs_config.save_model_dest
+#     batch_size = runs_config.batch_size
+#     num_epochs = runs_config.num_epochs
+#     criterion = runs_config.criterion
+#     optimizer = runs_config.optimizer
+#     lr = runs_config.lr
+#     scheduler_type = runs_config.scheduler_type
+#     warmup_steps_ratio = runs_config.warmup_steps_ratio
+#     best_model_metric = runs_config.best_model_metric
+#     save_best_model = runs_config.save_best_model
+#     save_model_dest = runs_config.save_model_dest
 
-    classification_runs = set(itertools.product(*[
-        text_features,
-        audio_features,
-        visual_features,
-        encoder_checkpoints,
-        hidden_dropout_prob,
-        modality_att_dropout_prob,
-        hidden_size,
-        projection_size,
-        [labels for labels in num_labels if labels != 1], # num_labels=1 for regression
-        batch_size,
-        num_epochs,
-        criterion['classification'],
-        optimizer,
-        lr,
-        scheduler_type,
-        warmup_steps_ratio,
-        best_model_metric['classification'],
-        save_best_model,
-        save_model_dest
-    ]))
+#     classification_runs = set(itertools.product(*[
+#         text_features,
+#         audio_features,
+#         visual_features,
+#         encoder_checkpoints,
+#         hidden_dropout_prob,
+#         modality_att_dropout_prob,
+#         hidden_size,
+#         projection_size,
+#         [labels for labels in num_labels if labels != 1], # num_labels=1 for regression
+#         batch_size,
+#         num_epochs,
+#         criterion['classification'],
+#         optimizer,
+#         lr,
+#         scheduler_type,
+#         warmup_steps_ratio,
+#         best_model_metric['classification'],
+#         save_best_model,
+#         save_model_dest
+#     ]))
 
-    regression_runs = set(itertools.product(*[
-        text_features,
-        audio_features,
-        visual_features,
-        encoder_checkpoints,
-        hidden_dropout_prob,
-        modality_att_dropout_prob,
-        hidden_size,
-        projection_size,
-        [labels for labels in num_labels if labels == 1], # num_labels=1 for regression
-        batch_size,
-        num_epochs,
-        criterion['regression'],
-        optimizer,
-        lr,
-        scheduler_type,
-        warmup_steps_ratio,
-        best_model_metric['regression'],
-        save_best_model,
-        save_model_dest
-    ]))
+#     regression_runs = set(itertools.product(*[
+#         text_features,
+#         audio_features,
+#         visual_features,
+#         encoder_checkpoints,
+#         hidden_dropout_prob,
+#         modality_att_dropout_prob,
+#         hidden_size,
+#         projection_size,
+#         [labels for labels in num_labels if labels == 1], # num_labels=1 for regression
+#         batch_size,
+#         num_epochs,
+#         criterion['regression'],
+#         optimizer,
+#         lr,
+#         scheduler_type,
+#         warmup_steps_ratio,
+#         best_model_metric['regression'],
+#         save_best_model,
+#         save_model_dest
+#     ]))
 
-    return classification_runs, regression_runs
+#     return classification_runs, regression_runs
 
 def main_multirun(args):
     """
     """
-    results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
+#     results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
     
-    classification_runs, regression_runs = permute_run_params()
-    all_runs = classification_runs.union(regression_runs)
+#     classification_runs, regression_runs = permute_run_params()
+#     all_runs = classification_runs.union(regression_runs)
 
-    datasets = runs_config.datasets
+#     datasets = runs_config.datasets
 
-    for dataset in datasets:
-        ds = dataset.upper()
+#     for dataset in datasets:
+#         ds = dataset.upper()
 
-        for run_config in all_runs:
-            audio_features = None
-            audio_feat_size = None
-            visual_features = None
-            visual_feat_size = None
+#         for run_config in all_runs:
+#             audio_features = None
+#             audio_feat_size = None
+#             visual_features = None
+#             visual_feat_size = None
 
-            (
-                text_feat,
-                audio_feat,
-                visual_feat,
-                encoder_checkpoint,
-                hidden_dropout_prob,
-                modality_att_dropout_prob,
-                hidden_size,
-                projection_size,
-                num_labels,
-                batch_size,
-                num_epochs,
-                criterion,
-                optimizer,
-                lr,
-                scheduler_type,
-                warmup_steps_ratio,
-                best_model_metric,
-                save_best_model,
-                save_model_dest
-            ) = run_config
+#             (
+#                 text_feat,
+#                 audio_feat,
+#                 visual_feat,
+#                 encoder_checkpoint,
+#                 hidden_dropout_prob,
+#                 modality_att_dropout_prob,
+#                 hidden_size,
+#                 projection_size,
+#                 num_labels,
+#                 batch_size,
+#                 num_epochs,
+#                 criterion,
+#                 optimizer,
+#                 lr,
+#                 scheduler_type,
+#                 warmup_steps_ratio,
+#                 best_model_metric,
+#                 save_best_model,
+#                 save_model_dest
+#             ) = run_config
 
-            visual_features = None
-            visual_feat_size = None
-            labels = SDK_DS[ds]['LABELS']['featuresname']
-            if audio_feat is not None:
-                audio_features = SDK_DS[ds][audio_feat]['featuresname']
-                audio_feat_size = SDK_DS[ds][audio_feat]['feat_size']
-            if visual_feat is not None:
-                visual_features = SDK_DS[ds][visual_feat]['featuresname']
-                visual_feat_size = SDK_DS[ds][visual_feat]['feat_size']
+#             visual_features = None
+#             visual_feat_size = None
+#             labels = SDK_DS[ds]['LABELS']['featuresname']
+#             if audio_feat is not None:
+#                 audio_features = SDK_DS[ds][audio_feat]['featuresname']
+#                 audio_feat_size = SDK_DS[ds][audio_feat]['feat_size']
+#             if visual_feat is not None:
+#                 visual_features = SDK_DS[ds][visual_feat]['featuresname']
+#                 visual_feat_size = SDK_DS[ds][visual_feat]['feat_size']
 
-            dataset_config = cmbert.CmuDatasetConfig(
-                sdkpath = SDK_DS['SDK_PATH'],
-                dataset = ds,
-                text_features = SDK_DS[ds][text_feat]['featuresname'],
-                audio_features = audio_features,
-                visual_features = visual_features,
-                labels = labels,
-                preprocess = False,
-                load_preprocessed = True, # by default load preprocessed data
-            )
+#             dataset_config = cmbert.CmuDatasetConfig(
+#                 sdkpath = SDK_DS['SDK_PATH'],
+#                 dataset = ds,
+#                 text_features = SDK_DS[ds][text_feat]['featuresname'],
+#                 audio_features = audio_features,
+#                 visual_features = visual_features,
+#                 labels = labels,
+#                 preprocess = False,
+#                 load_preprocessed = True, # by default load preprocessed data
+#             )
 
-            training_arguments = train.TrainingArgs(
-                batch_size = batch_size,
-                num_epochs = num_epochs,
-                criterion = criterion,
-                optimizer = optimizer,
-                lr = lr,
-                scheduler_type = scheduler_type,
-                warmup_steps_ratio = warmup_steps_ratio,
-                save_best_model = save_best_model,
-                save_model_dest = save_model_dest
-            )
+#             training_arguments = train.TrainingArgs(
+#                 batch_size = batch_size,
+#                 num_epochs = num_epochs,
+#                 criterion = criterion,
+#                 optimizer = optimizer,
+#                 lr = lr,
+#                 scheduler_type = scheduler_type,
+#                 warmup_steps_ratio = warmup_steps_ratio,
+#                 save_best_model = save_best_model,
+#                 save_model_dest = save_model_dest
+#             )
 
-            _model_config = cmbert.CMBertConfig(
-                encoder_checkpoint = encoder_checkpoint,
-                modality_att_dropout_prob = modality_att_dropout_prob,
-                hidden_dropout_prob = hidden_dropout_prob,
-                hidden_size = hidden_size,
-                audio_feat_size = audio_feat_size,
-                visual_feat_size = visual_feat_size,
-                projection_size = projection_size,
-                num_labels = num_labels,
-                best_model_metric = best_model_metric,
-            )
+#             _model_config = cmbert.CMBertConfig(
+#                 encoder_checkpoint = encoder_checkpoint,
+#                 modality_att_dropout_prob = modality_att_dropout_prob,
+#                 hidden_dropout_prob = hidden_dropout_prob,
+#                 hidden_size = hidden_size,
+#                 audio_feat_size = audio_feat_size,
+#                 visual_feat_size = visual_feat_size,
+#                 projection_size = projection_size,
+#                 num_labels = num_labels,
+#                 best_model_metric = best_model_metric,
+#             )
 
-            train.main(
-                dataset_config=dataset_config,
-                model_config=_model_config,
-                training_arguments=training_arguments,
-                results_path=results_path,
-                dsdeploy=args.dsdeploy,
-                )
+#             train.main(
+#                 dataset_config=dataset_config,
+#                 model_config=_model_config,
+#                 training_arguments=training_arguments,
+#                 results_path=results_path,
+#                 dsdeploy=args.dsdeploy,
+#                 )
 
 
 
