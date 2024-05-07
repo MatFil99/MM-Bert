@@ -83,6 +83,7 @@ def main_single_run(args):
         model_config=_model_config,
         training_arguments=training_arguments,
         results_path=results_path,
+        dsdeploy=args.dsdeploy,
         )
 
 def permute_run_params():
@@ -192,7 +193,7 @@ def main_multirun(args):
                 optimizer,
                 lr,
                 scheduler_type,
-                num_warmup_steps,
+                warmup_steps_ratio,
                 best_model_metric,
                 save_best_model,
                 save_model_dest
@@ -215,8 +216,8 @@ def main_multirun(args):
                 audio_features = audio_features,
                 visual_features = visual_features,
                 labels = labels,
-                preprocess = args.preprocess,
-                load_preprocessed = args.load_preprocessed,
+                preprocess = False,
+                load_preprocessed = True, # by default load preprocessed data
             )
 
             training_arguments = train.TrainingArgs(
@@ -226,7 +227,7 @@ def main_multirun(args):
                 optimizer = optimizer,
                 lr = lr,
                 scheduler_type = scheduler_type,
-                num_warmup_steps = num_warmup_steps,
+                warmup_steps_ratio = warmup_steps_ratio,
                 save_best_model = save_best_model,
                 save_model_dest = save_model_dest
             )
@@ -248,6 +249,7 @@ def main_multirun(args):
                 model_config=_model_config,
                 training_arguments=training_arguments,
                 results_path=results_path,
+                dsdeploy=args.dsdeploy,
                 )
 
 
@@ -276,7 +278,7 @@ if __name__ == '__main__':
                         )
 
     parser.add_argument('-a', dest='audio_feat', metavar='audio features', type=str,
-                        choices=['COVAREP'], 
+                        choices=['COVAREP', 'OPENSMILE'], # OPENSMILE only for cmumosi
                         help='audio features used for training and testing model'
                         )
     

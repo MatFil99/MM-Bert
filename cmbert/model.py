@@ -6,13 +6,16 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 import numpy as np
 
 # not flexible model
-from transformers import AutoModel, AutoTokenizer, BertModel, PreTrainedModel, BertConfig, BertPreTrainedModel, DistilBertPreTrainedModel
-from transformers.modeling_outputs import SequenceClassifierOutput
+from transformers import AutoModel, AutoTokenizer, BertModel, PreTrainedModel, BertConfig, BertPreTrainedModel, DistilBertPreTrainedModel, DistilBertConfig
+from transformers.activations import GELUActivation
+from transformers.modeling_outputs import SequenceClassifierOutput, MaskedLMOutput
+
 
 # checkpoint = 'google-bert/bert-base-uncased'
 
 
-class CMBertConfig(BertConfig):
+class CMBertConfig(DistilBertConfig):
+# class CMBertConfig(BertConfig):
 
     def __init__(self,
                  encoder_checkpoint = 'google-bert/bert-base-uncased',
@@ -103,11 +106,11 @@ class ModalityAttention(nn.Module):
             audio_data = audio_data / weights
 
             # attention
-            audio_att = torch.matmul(audio_data, audio_data.transpose(-1, -2))
-            audio_att = self.activation(audio_att)
-            audio_att_weighted = audio_att * self.audio_weight_1
+            text_x_audio_att = torch.matmul(text_data, audio_data.transpose(-1, -2))
+            text_x_audio_att = self.activation(text_x_audio_att)
+            text_x_audio_att_weighted = text_x_audio_att * self.audio_weight_1
         else:
-            audio_att_weighted = 0
+            text_x_audio_att_weighted = 0
 
         if self.visual_modality:
             # visual projection
@@ -120,11 +123,11 @@ class ModalityAttention(nn.Module):
             visual_data = visual_data / weights
 
             # attention
-            visual_att = torch.matmul(visual_data, visual_data.transpose(-1, -2))
-            visual_att = self.activation(visual_att)
-            visual_att_weighted = visual_att * self.visual_weight_1
+            text_x_visual_att = torch.matmul(text_data, visual_data.transpose(-1, -2))
+            text_x_visual_att = self.activation(text_x_visual_att)
+            text_x_visual_att_weighted = text_x_visual_att * self.visual_weight_1
         else:
-            visual_att_weighted = 0
+            text_x_visual_att_weighted = 0
 
 
         # text attention
@@ -135,14 +138,16 @@ class ModalityAttention(nn.Module):
         bias = self.bias
 
         # fusion_att = text_weight_1 * text_att1 + audio_weight_1 * audio_att + visual_weight_1 * visual_att + bias
-        fusion_att = text_att_weighted + audio_att_weighted + visual_att_weighted + bias
+        fusion_att = text_x_audio_att_weighted + text_x_visual_att_weighted + bias
+        # fusion_att = text_att_weighted + text_x_audio_att_weighted + text_x_visual_att_weighted + bias
+        
         fusion_att1 = self.activation(fusion_att)
         fusion_att = fusion_att + att_mask_final
         fusion_att = self.softmax(fusion_att)
         fusion_att = self.dropout1(fusion_att)
 
         # there could be used other approaches
-        fusion_data = torch.matmul(fusion_att, hidden_states) 
+        fusion_data = torch.matmul(fusion_att, hidden_states)
         fusion_data = fusion_data + hidden_states
 
         # norm
@@ -150,10 +155,80 @@ class ModalityAttention(nn.Module):
         hidden_states_new = self.dropout(hidden_states_new)
         hidden_states_new = self.norm(hidden_states_new)
 
+        hidden_states_new = fusion_data
+
         return hidden_states_new, text_att, fusion_att1
 
+class CMBertForMaskedLM(DistilBertPreTrainedModel):
 
-# class CMBertForSequenceClassification(BertPreTrainedModel):
+    _tied_weights_keys = ["vocab_projector.weight"]
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        self.activation = GELUActivation() # GELUActivation # nn.GELU
+
+        self.encoder = AutoModel.from_pretrained(config.encoder_checkpoint)
+        
+        if config.audio_feat_size or config.visual_feat_size:
+            self.modality_fusion = ModalityAttention(config)
+        else:
+            self.modality_fusion = None
+        
+        self.vocab_transform = nn.Linear(config.hidden_size, config.hidden_size)
+        self.vocab_layer_norm = nn.LayerNorm(config.hidden_size, eps=1e-12)
+        self.vocab_projector = nn.Linear(config.hidden_size, config.vocab_size)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+        self.mlm_loss_fct = nn.CrossEntropyLoss()
+    
+    def forward(
+        self,
+        audio_data=None,
+        visual_data=None,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        return_dict = None
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.encoder(
+            input_ids,
+            attention_mask=attention_mask
+        )
+
+        hidden_states = outputs[0]
+        text_att = None
+        fusion_att = None
+        if self.modality_fusion:
+            hidden_states, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, visual_data, attention_mask)
+
+        prediction_logits = self.vocab_transform(hidden_states)  # (bs, seq_length, dim)
+        prediction_logits = self.activation(prediction_logits)  # (bs, seq_length, dim)
+        prediction_logits = self.vocab_layer_norm(prediction_logits)  # (bs, seq_length, dim)
+        prediction_logits = self.vocab_projector(prediction_logits)  # (bs, seq_length, vocab_size)
+
+        mlm_loss = None
+        if labels is not None:
+            mlm_loss = self.mlm_loss_fct(prediction_logits.view(-1, prediction_logits.size(-1)), labels.view(-1))
+
+        if not return_dict:
+            output = (prediction_logits,) + outputs[1:]
+            return ((mlm_loss,) + output) if mlm_loss is not None else output
+
+        return MaskedLMOutput(
+            loss=mlm_loss,
+            logits=prediction_logits,
+            hidden_states=outputs[0],
+            # attentions=,
+        )
+    # mlm_loss, prediction_logits, outputs[0]
+
+# class CMBertForSequenceClassification(PreTrainedModel):
 class CMBertForSequenceClassification(DistilBertPreTrainedModel):
 
     def __init__(self, config): #, num_labels=2):
