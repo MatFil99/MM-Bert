@@ -1,0 +1,2 @@
+from .multirun_config import get_runs_configuration
+from .singlerun_config import get_singlerun_configuration
