@@ -257,6 +257,8 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         'test_eval': test_eval,
     }
 
+
+
     save_result(result, results_path)
 
     model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + results_path.split('/')[-1][8:-6]
@@ -266,3 +268,16 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
             save_directory=full_path,
             state_dict=best_model.state_dict(),
         )
+
+    with open('params_best_model.txt', 'w+') as fd:
+        for params in best_model.parameters():
+            fd.write(str(params))
+
+    
+    from mmanalysis.models.mmbert import MMBertForSequenceClassification
+    model_loaded = MMBertForSequenceClassification.from_pretrained(full_path)
+
+    with open('params_model_loaded.txt', 'w+') as fd:
+        for params in model_loaded.parameters():
+            fd.write(str(params))
+

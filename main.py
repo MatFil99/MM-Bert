@@ -41,6 +41,7 @@ def main_single_run(args):
     (
     model_name,
     encoder_checkpoint,
+    # load_pretrained,
     hidden_dropout_prob,
     modality_att_dropout_prob,
     freeze_params,
@@ -138,6 +139,7 @@ def main_multirun(args):
                 visual_feat,
                 model_name,
                 encoder_checkpoint,
+                # load_pretrained,
                 hidden_dropout_prob,
                 modality_att_dropout_prob,
                 freeze_params,

@@ -4,6 +4,7 @@ def get_singlerun_configuration(
     # default run configuration
     model_name='cmbert',
     encoder_checkpoint='distilbert/distilbert-base-uncased',
+    # load_pretrained=False,
     hidden_dropout_prob=0.2,
     modality_att_dropout_prob=0.3,
     freeze_params=True, 
@@ -26,6 +27,7 @@ def get_singlerun_configuration(
     return (
         model_name,
         encoder_checkpoint,
+        # load_pretrained,
         hidden_dropout_prob,
         modality_att_dropout_prob,
         freeze_params,
@@ -54,6 +56,7 @@ def get_multirun_configuration(
         visual_features=['FACET42', None],
         model_names=['cmbert', 'mmbert'],
         encoder_checkpoints=['distilbert/distilbert-base-uncased'],
+        # load_pretrained=False,
         hidden_dropout_prob=[0.1, 0.2],
         modality_att_dropout_prob=[0.3],
         freeze_params=[False, True],
@@ -79,6 +82,7 @@ def get_multirun_configuration(
         visual_features,
         model_names,
         encoder_checkpoints,
+        # load_pretrained,
         hidden_dropout_prob,
         modality_att_dropout_prob,
         freeze_params,
