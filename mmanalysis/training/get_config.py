@@ -1,0 +1,98 @@
+import itertools
+
+def get_singlerun_configuration(
+    # default run configuration
+    encoder_checkpoint='distilbert/distilbert-base-uncased',
+    hidden_dropout_prob=0.2,
+    modality_att_dropout_prob=0.3,
+    freeze_params=True, 
+    hidden_size=768,
+    projection_size=30,
+    num_labels=2,
+    batch_size=8,
+    num_epochs=3,
+    chunk_size=None,
+    criterion='crossentropyloss',
+    optimizer='adamw',
+    layer_specific_optimization=True,
+    lr=2e-5,
+    scheduler_type='linear',
+    warmup_steps_ratio=0.0,
+    best_model_metric='accuracy',
+    save_best_model=False,
+    save_model_dest='models/'
+):
+    return (
+        encoder_checkpoint,
+        hidden_dropout_prob,
+        modality_att_dropout_prob,
+        freeze_params,
+        hidden_size,
+        projection_size,
+        num_labels,
+        batch_size,
+        num_epochs,
+        chunk_size,
+        criterion,
+        optimizer,
+        layer_specific_optimization,
+        lr,
+        scheduler_type,
+        warmup_steps_ratio,
+        best_model_metric,
+        save_best_model,
+        save_model_dest,
+    )
+
+
+def get_multirun_configuration(
+        datasets=['cmumosi'],
+        text_features=['RAWTEXT'],
+        audio_features=['COVAREP', None],
+        visual_features=['FACET42', None],
+        encoder_checkpoints=['distilbert/distilbert-base-uncased'],
+        hidden_dropout_prob=[0.1, 0.2],
+        modality_att_dropout_prob=[0.3],
+        freeze_params=[False, True],
+        hidden_size=[768],
+        projection_size=[30, 768],
+        num_labels=[2, 7],
+        batch_size=[8],
+        num_epochs=[3],
+        chunk_size=[None],
+        criterion=['crossentropyloss'],
+        optimizer=['adamw'],
+        layer_specific_optimization=[False, True],
+        lr=[2e-5],
+        scheduler_type=['linear'],
+        warmup_steps_ratio=[0.1],
+        best_model_metric=['accuracy'],
+        save_best_model=[False],
+        save_model_dest=['models/']
+):
+    runs_configuration = set(itertools.product(*[
+        text_features,
+        audio_features,
+        visual_features,
+        encoder_checkpoints,
+        hidden_dropout_prob,
+        modality_att_dropout_prob,
+        freeze_params,
+        hidden_size,
+        projection_size,
+        num_labels,
+        batch_size,
+        num_epochs,
+        chunk_size,
+        criterion,
+        optimizer,
+        layer_specific_optimization,
+        lr,
+        scheduler_type,
+        warmup_steps_ratio,
+        best_model_metric,
+        save_best_model,
+        save_model_dest
+    ]))
+
+    return datasets, runs_configuration

@@ -164,8 +164,7 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
 
 
     # Prepare optimizer parameters
-    if ('audio_feat' in dataset_config.feature_names 
-        or 'visual_feat' in dataset_config.feature_names):
+    if training_arguments.layer_specific_optimization:
         parameters = set_optimizer_custom_parameters(
             model=model,
         )

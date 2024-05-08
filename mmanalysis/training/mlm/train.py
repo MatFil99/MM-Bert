@@ -166,17 +166,14 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
         'train': Dataset.from_dict(train_ds.dataset),
         'valid': Dataset.from_dict(valid_ds.dataset),
         'test': Dataset.from_dict(test_ds.dataset),
-        # 'train': Dataset.from_dict(train_ds[:225]),
-        # 'valid': Dataset.from_dict(valid_ds[:225]),
-        # 'test': Dataset.from_dict(test_ds[:225]),
     })
 
     remove_columns = []
     if 'text_feat' in dataset_config.feature_names:
         remove_columns.append('text_feat')
-    elif 'audio_feat' in dataset_config.feature_names:
+    if 'audio_feat' in dataset_config.feature_names:
         remove_columns.append('audio_feat')
-    elif 'visual_feat' in dataset_config.feature_names:
+    if 'visual_feat' in dataset_config.feature_names:
         remove_columns.append('visual_feat')
 
     tokenized_datasets = dsdict.map(
@@ -195,7 +192,7 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     data_collator = MMMLMDataCollator(tokenizer=tokenizer, return_tensors='pt', device=device)
     
-    batch_size = 8
+    batch_size = training_arguments.batch_size
   
     train_dataloader = DataLoader(lm_datasets['train'], shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     valid_dataloader = DataLoader(lm_datasets['valid'], shuffle=True, batch_size=batch_size, collate_fn=data_collator)
@@ -205,8 +202,7 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     model.to(device)
 
     # Prepare optimizer
-    if ('audio_feat' in dataset_config.feature_names 
-        or 'visual_feat' in dataset_config.feature_names):
+    if training_arguments.layer_specific_optimization:
         parameters = set_optimizer_custom_parameters(
             model=model,
         )

@@ -1,8 +1,6 @@
 import argparse
-import itertools
 from datetime import datetime
 
-# from cmbert import SDK_DS
 
 # import train_class as train
 from mmanalysis.training.training_arguments import TrainingArgs
@@ -16,13 +14,6 @@ from mmanalysis.datasets.cmu import (
     CmuDatasetConfig
 )
 
-# parameters for single run
-# import model_config
-
-
-
-# parameters for multirun
-# import runs_config
 
 def main_single_run(args):
     results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
@@ -46,6 +37,7 @@ def main_single_run(args):
     encoder_checkpoint,
     hidden_dropout_prob,
     modality_att_dropout_prob,
+    freeze_params,
     hidden_size,
     projection_size,
     num_labels,
@@ -54,13 +46,14 @@ def main_single_run(args):
     chunk_size,
     criterion,
     optimizer,
+    layer_specific_optimization,
     lr,
     scheduler_type,
     warmup_steps_ratio,
     best_model_metric,
     save_best_model,
     save_model_dest
-    ) = get_singlerun_configuration()
+    ) = get_singlerun_configuration(**singlerun_configuration)
 
     dataset_config = CmuDatasetConfig(
         sdkpath = SDK_DS['SDK_PATH'],
@@ -79,6 +72,7 @@ def main_single_run(args):
         chunk_size=chunk_size,
         criterion = criterion,
         optimizer = optimizer,
+        layer_specific_optimization = layer_specific_optimization,
         lr = lr,
         scheduler_type = scheduler_type,
         warmup_steps_ratio = warmup_steps_ratio,
@@ -86,11 +80,12 @@ def main_single_run(args):
         save_model_dest = save_model_dest
     )
 
-    _model_config = CMBertConfig(
-    # _model_config = MMBertConfig(
+    model_config = CMBertConfig(
+    # model_config = MMBertConfig(
         encoder_checkpoint=encoder_checkpoint,
         modality_att_dropout_prob=modality_att_dropout_prob,
         hidden_dropout_prob=hidden_dropout_prob,
+        freeze_params=freeze_params,
         hidden_size=hidden_size,
         audio_feat_size=audio_feat_size,
         visual_feat_size=visual_feat_size,
@@ -99,9 +94,11 @@ def main_single_run(args):
         best_model_metric=best_model_metric,
     )
 
+    # print(model_config.hidden_size)
+
     train.main(
         dataset_config=dataset_config,
-        model_config=_model_config,
+        model_config=model_config,
         training_arguments=training_arguments,
         results_path=results_path,
         dsdeploy=args.dsdeploy,
@@ -114,7 +111,7 @@ def main_multirun(args):
     results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
     
     
-    datasets, runs_config = get_runs_configuration()
+    datasets, runs_config = get_multirun_configuration(**multirun_configuration)
 
     for dataset in datasets:
         ds = dataset.upper()
@@ -132,14 +129,16 @@ def main_multirun(args):
                 encoder_checkpoint,
                 hidden_dropout_prob,
                 modality_att_dropout_prob,
+                freeze_params,
                 hidden_size,
                 projection_size,
                 num_labels,
                 batch_size,
-                chunk_size,
                 num_epochs,
+                chunk_size,
                 criterion,
                 optimizer,
+                layer_specific_optimization,
                 lr,
                 scheduler_type,
                 warmup_steps_ratio,
@@ -175,6 +174,7 @@ def main_multirun(args):
                 chunk_size=chunk_size,
                 criterion = criterion,
                 optimizer = optimizer,
+                layer_specific_optimization = layer_specific_optimization,
                 lr = lr,
                 scheduler_type = scheduler_type,
                 warmup_steps_ratio = warmup_steps_ratio,
@@ -182,11 +182,12 @@ def main_multirun(args):
                 save_model_dest = save_model_dest
             )
 
-            _model_config = CMBertConfig(
+            model_config = CMBertConfig(
                 encoder_checkpoint = encoder_checkpoint,
                 modality_att_dropout_prob = modality_att_dropout_prob,
                 hidden_dropout_prob = hidden_dropout_prob,
                 hidden_size = hidden_size,
+                freeze_params=freeze_params,
                 audio_feat_size = audio_feat_size,
                 visual_feat_size = visual_feat_size,
                 projection_size = projection_size,
@@ -196,7 +197,7 @@ def main_multirun(args):
 
             train.main(
                 dataset_config=dataset_config,
-                model_config=_model_config,
+                model_config=model_config,
                 training_arguments=training_arguments,
                 results_path=results_path,
                 dsdeploy=args.dsdeploy,
@@ -272,27 +273,36 @@ if __name__ == '__main__':
 
     if args.task == 'class':
         from mmanalysis.training.classification import (
-            get_singlerun_configuration,
-            get_runs_configuration,
+            # get_singlerun_configuration,
+            # get_runs_configuration,
+            multirun_configuration,
+            singlerun_configuration,
             train,
         )
     elif args.task == 'mlm':
         # import mlm training configuration
         from mmanalysis.training.mlm import (
-            get_singlerun_configuration,
-            get_runs_configuration,
+            # get_singlerun_configuration,
+            # get_runs_configuration,
+            multirun_configuration,
+            singlerun_configuration,
             train,
         )
     elif args.task == 'reg':
         from mmanalysis.training.regression import (
-            get_singlerun_configuration,
-            get_runs_configuration,
+            # get_singlerun_configuration,
+            # get_runs_configuration,
+            multirun_configuration,
+            singlerun_configuration,
             train,
         )
     
+    from mmanalysis.training.get_config import (
+        get_singlerun_configuration,
+        get_multirun_configuration
+    )
 
     if not args.multirun:
         main_single_run(args)
     else:
         main_multirun(args)
-
