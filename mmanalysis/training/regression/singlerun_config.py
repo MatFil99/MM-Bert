@@ -1,5 +1,6 @@
 singlerun_configuration = {
 # model hyperparameters
+'model_name': 'cmbert',
 'encoder_checkpoint': 'distilbert/distilbert-base-uncased' ,
 'hidden_dropout_prob': 0.2 ,
 'modality_att_dropout_prob': 0.3 ,

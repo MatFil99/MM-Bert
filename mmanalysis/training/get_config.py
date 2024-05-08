@@ -2,6 +2,7 @@ import itertools
 
 def get_singlerun_configuration(
     # default run configuration
+    model_name='cmbert',
     encoder_checkpoint='distilbert/distilbert-base-uncased',
     hidden_dropout_prob=0.2,
     modality_att_dropout_prob=0.3,
@@ -23,6 +24,7 @@ def get_singlerun_configuration(
     save_model_dest='models/'
 ):
     return (
+        model_name,
         encoder_checkpoint,
         hidden_dropout_prob,
         modality_att_dropout_prob,
@@ -50,6 +52,7 @@ def get_multirun_configuration(
         text_features=['RAWTEXT'],
         audio_features=['COVAREP', None],
         visual_features=['FACET42', None],
+        model_names=['cmbert', 'mmbert'],
         encoder_checkpoints=['distilbert/distilbert-base-uncased'],
         hidden_dropout_prob=[0.1, 0.2],
         modality_att_dropout_prob=[0.3],
@@ -74,6 +77,7 @@ def get_multirun_configuration(
         text_features,
         audio_features,
         visual_features,
+        model_names,
         encoder_checkpoints,
         hidden_dropout_prob,
         modality_att_dropout_prob,

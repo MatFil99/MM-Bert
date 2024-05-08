@@ -127,7 +127,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
     return best_model, train_loss, valid_eval
 
 
-def main(dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
+def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
@@ -135,14 +135,18 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     if device == torch.device('cuda'):
         torch.cuda.manual_seed_all(seed)
     
-
     # dataset
     ds = CmuDataset(dataset_config)
     if dsdeploy:
         ds.deploy()
     
     # model
-    model = CMBertForSequenceClassification(config=model_config)
+    if model_name == 'cmbert':
+        ModelClass = CMBertForSequenceClassification
+    elif model_name == 'mmbert':
+        ModelClass = MMBertForSequenceClassification
+
+    model = ModelClass(config=model_config)
     # model = MMBertForSequenceClassification(config=model_config)
     
     # task used for metric definition
@@ -173,8 +177,14 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     model.to(device)
     criterion.to(device)
 
-    # tokenizer = MMBertTokenizer(checkpoint=model_config.encoder_checkpoint)
-    tokenizer = CMBertTokenizer(checkpoint=model_config.encoder_checkpoint)
+    
+    # tokenizer
+    if model_name == 'cmbert':
+        TokenizerClass = CMBertTokenizer
+    elif model_name == 'mmbert':
+        TokenizerClass = MMBertTokenizer
+
+    tokenizer = TokenizerClass(checkpoint=model_config.encoder_checkpoint)
 
     data_collator = MMSeqClassDataCollator(tokenizer=tokenizer, num_labels=model_config.num_classes, device=device)
     train_dataloader = DataLoader(train_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
@@ -208,8 +218,8 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
 
     best_model = model
 
-    full_path = training_arguments.save_model_dest + '/' + model_config.encoder_checkpoint.split('/')[-1]
-    
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + results_path.split('/')[-1][8:-6]
+    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
     if training_arguments.save_best_model:
         best_model.save_pretrained(
             save_directory=full_path,

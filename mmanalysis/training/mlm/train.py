@@ -11,11 +11,10 @@ from transformers import get_scheduler
 from tqdm.auto import tqdm
 from datasets.dataset_dict import DatasetDict
 from datasets import Dataset
-import evaluate
 
 
 from mmanalysis.models.cmbert import (
-    CMBertConfig,
+    # CMBertConfig,
     CMBertForMaskedLM,
     CMBertTokenizer,
 )
@@ -142,7 +141,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
     
     return best_model, train_loss, valid_eval
 
-def main(dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
+def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
@@ -150,7 +149,12 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     if device == torch.device('cuda'):
         torch.cuda.manual_seed_all(seed)
 
-    tokenizer = CMBertTokenizer(checkpoint=model_config.encoder_checkpoint)
+    if model_name == 'cmbert':
+        TokenizerClass = CMBertTokenizer
+    elif model_name == 'mmbert':
+        TokenizerClass = MMBertTokenizer
+
+    tokenizer = TokenizerClass(checkpoint=model_config.encoder_checkpoint)
 
     # dataset
     ds = CmuDataset(dataset_config)
@@ -198,7 +202,12 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     valid_dataloader = DataLoader(lm_datasets['valid'], shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(lm_datasets['test'], batch_size=batch_size, collate_fn=data_collator)
 
-    model = CMBertForMaskedLM(model_config)
+    if model_name == 'cmbert':
+        ModelClass = CMBertForMaskedLM
+    elif model_name == 'mmbert':
+        ModelClass = MMBertForMaskedLM
+
+    model = ModelClass(model_config)
     model.to(device)
 
     # Prepare optimizer
@@ -249,59 +258,11 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     }
 
     save_result(result, results_path)
-    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + results_path.split('/')[-1][8:24]
 
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + results_path.split('/')[-1][8:-6]
     full_path = training_arguments.save_model_dest + '/' + model_checkpoint_name
     if training_arguments.save_best_model:
         best_model.save_pretrained(
             save_directory=full_path,
             state_dict=best_model.state_dict(),
         )
-
-if __name__ =='__main__':
-    pass
-#     ds = 'CMUMOSI'
-#     text_features = SDK_DS[ds]['RAWTEXT']['featuresname']
-#     audio_features = SDK_DS[ds]['COVAREP']['featuresname']
-#     visual_features = SDK_DS[ds]['FACET42']['featuresname']
-#     labels = SDK_DS[ds]['LABELS']['featuresname']
-
-#     dataset_config = CmuDatasetConfig(
-#         sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
-#         dataset = ds,
-#         text_features = text_features,
-#         audio_features = audio_features,
-#         visual_features = visual_features,
-#         labels = labels,
-#         preprocess = False,
-#         load_preprocessed = True,
-#     )
-
-#     _model_config = CMBertConfig(
-#         encoder_checkpoint=model_config.encoder_checkpoint,
-#         modality_att_dropout_prob=model_config.modality_att_dropout_prob,
-#         hidden_dropout_prob=model_config.hidden_dropout_prob,
-#         hidden_size=model_config.hidden_size,
-#         audio_feat_size=SDK_DS[ds]['COVAREP']['feat_size'],
-#         visual_feat_size=SDK_DS[ds]['FACET42']['feat_size'],
-#         projection_size=model_config.projection_size,
-#         num_labels=model_config.num_labels,
-#         best_model_metric=model_config.best_model_metric,
-#     )
-
-#     training_arguments = TrainingArgs(
-#         batch_size = model_config.batch_size,
-#         num_epochs = model_config.num_epochs,
-#         criterion = model_config.criterion,
-#         optimizer = model_config.optimizer,
-#         lr = model_config.lr,
-#         scheduler_type = model_config.scheduler_type,
-#         warmup_steps_ratio = model_config.warmup_steps_ratio,
-#         save_best_model = True, # 
-#         save_model_dest = model_config.save_model_dest   
-#     )
-
-#     results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
-
-#     main(dataset_config=dataset_config, _model_config=_model_config, training_arguments=training_arguments, results_path=results_path)
-    

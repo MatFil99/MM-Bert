@@ -14,9 +14,14 @@ from mmanalysis.datasets.cmu import (
     CmuDatasetConfig
 )
 
+def get_model_config_class(model_name):
+    if model_name == 'cmbert':
+        return CMBertConfig
+    elif model_name == 'mmbert':
+        return MMBertConfig
 
 def main_single_run(args):
-    results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
+    datetime_start = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
 
     ds = args.ds.upper()
     text_features = SDK_DS[ds][args.text_feat]['featuresname']
@@ -34,6 +39,7 @@ def main_single_run(args):
         visual_feat_size = SDK_DS[ds][args.visual_feat]['feat_size']
 
     (
+    model_name,
     encoder_checkpoint,
     hidden_dropout_prob,
     modality_att_dropout_prob,
@@ -80,8 +86,10 @@ def main_single_run(args):
         save_model_dest = save_model_dest
     )
 
-    model_config = CMBertConfig(
-    # model_config = MMBertConfig(
+    # CMBertConfig / MMBertConfig / ...
+    ModelConfigClass = get_model_config_class(model_name=model_name)
+
+    model_config = ModelConfigClass(
         encoder_checkpoint=encoder_checkpoint,
         modality_att_dropout_prob=modality_att_dropout_prob,
         hidden_dropout_prob=hidden_dropout_prob,
@@ -94,9 +102,12 @@ def main_single_run(args):
         best_model_metric=best_model_metric,
     )
 
-    # print(model_config.hidden_size)
-
+    print(ModelConfigClass)
+    print(model_config)
+    
+    results_path = 'experiments/results_' + model_name + '_' + datetime_start + '.jsonl'
     train.main(
+        model_name=model_name,
         dataset_config=dataset_config,
         model_config=model_config,
         training_arguments=training_arguments,
@@ -108,8 +119,7 @@ def main_single_run(args):
 def main_multirun(args):
     """
     """
-    results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
-    
+    datetime_start = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     
     datasets, runs_config = get_multirun_configuration(**multirun_configuration)
 
@@ -126,6 +136,7 @@ def main_multirun(args):
                 text_feat,
                 audio_feat,
                 visual_feat,
+                model_name,
                 encoder_checkpoint,
                 hidden_dropout_prob,
                 modality_att_dropout_prob,
@@ -182,7 +193,9 @@ def main_multirun(args):
                 save_model_dest = save_model_dest
             )
 
-            model_config = CMBertConfig(
+            ModelConfigClass = get_model_config_class(model_name=model_name)
+            
+            model_config = ModelConfigClass(
                 encoder_checkpoint = encoder_checkpoint,
                 modality_att_dropout_prob = modality_att_dropout_prob,
                 hidden_dropout_prob = hidden_dropout_prob,
@@ -194,8 +207,11 @@ def main_multirun(args):
                 num_labels = num_labels,
                 best_model_metric = best_model_metric,
             )
+            
+            results_path = 'experiments/results_' + model_name + '_' + datetime_start + '.jsonl'
 
             train.main(
+                model_name=model_name,
                 dataset_config=dataset_config,
                 model_config=model_config,
                 training_arguments=training_arguments,
