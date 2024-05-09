@@ -1,6 +1,6 @@
 singlerun_configuration = {
 # model hyperparameters
-'model_name': 'cmbert',
+'model_name': 'mmbert',
 'encoder_checkpoint': 'distilbert/distilbert-base-uncased' ,
 'hidden_dropout_prob': 0.2 ,
 'modality_att_dropout_prob': 0.3 ,
@@ -11,6 +11,7 @@ singlerun_configuration = {
 # training arguments
 'batch_size': 24 ,
 'num_epochs': 3,
+'patience': 1,
 'chunk_size': None,
 'criterion': 'mseloss', # ['mseloss', 'maeloss']
 'optimizer': 'adamw', # ['adamw', 'adam', 'rmsprop'] 'adadelta'
@@ -18,6 +19,6 @@ singlerun_configuration = {
 'scheduler_type': 'linear', # ['linear', 'constant', 'cosine', 'cosine_with_restarts', 'polynomial', 'constant', 'constant_with_warmup', 'inverse_sqrt', 'reduce_lr_on_plateau', 'cosine_with_min_lr', 'warmup_stable_decay']
 'warmup_steps_ratio': 0.0 ,
 'best_model_metric': 'mse', # ['mse', 'mae', 'pearsonr', 'loss']
-'save_best_model': False,
-'save_model_dest': 'models/'
+'save_best_model': True,
+'save_model_dest': 'models/reg'
 }

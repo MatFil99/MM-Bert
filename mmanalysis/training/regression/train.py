@@ -1,4 +1,5 @@
 import copy 
+from datetime import datetime
 
 import torch
 from torch.utils.data import DataLoader
@@ -78,7 +79,7 @@ def evaluation(model, dataloader, criterion, metrics_names, task):
 
     return calculated_metrics
 
-def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_scheduler, criterion, metrics, task, best_model_metric):
+def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optimizer, lr_scheduler, criterion, metrics, task, best_model_metric):
     # num_epochs = 3
     num_training_steps = num_epochs * len(train_dataloader)
     progress_bar = tqdm(range(num_training_steps))
@@ -87,6 +88,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
 
     best_model = copy.deepcopy(model)
     best_eval = 0.0
+    worse_count = 0
 
     for epoch in range(num_epochs):
         
@@ -120,9 +122,15 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
         if valid_evaluation[best_model_metric] > best_eval:
             best_model = copy.deepcopy(model)
             best_eval = valid_evaluation[best_model_metric]
+            worse_count = 0
+        else:
+            worse_count += 1
 
         train_loss.append(cum_loss)
         valid_eval.append(valid_evaluation)
+
+        if worse_count > patience:
+            break
 
     return best_model, train_loss, valid_eval
 
@@ -208,6 +216,7 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         train_dataloader=train_dataloader,
         valid_dataloader=valid_dataloader,
         num_epochs=num_epochs,
+        patience=training_arguments.patience,
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
         criterion=criterion,
@@ -217,14 +226,6 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     )
 
     best_model = model
-
-    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + results_path.split('/')[-1][8:-6]
-    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
-    if training_arguments.save_best_model:
-        best_model.save_pretrained(
-            save_directory=full_path,
-            state_dict=best_model.state_dict(),
-        )
 
     calculated_metrics = evaluation(
         model=best_model, 
@@ -236,9 +237,11 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
 
     print(calculated_metrics)
 
+    datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     result = {
         'dataset_config': dataset_config.__dict__,
         'training_arguments': training_arguments.__dict__,
+        'model_name': model_name,
         'model_config': model_config.__dict__,
         'train_loss': train_loss,
         'valid_eval': valid_eval,
@@ -246,3 +249,12 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     }
 
     save_result(result, results_path)
+
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
+    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
+
+    if training_arguments.save_best_model:
+        best_model.save_pretrained(
+            save_directory=full_path,
+            state_dict=best_model.state_dict(),
+        )

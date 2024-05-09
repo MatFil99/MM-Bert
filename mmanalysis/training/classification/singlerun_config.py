@@ -1,17 +1,18 @@
 
 singlerun_configuration = {
 # model hyperparameters
-'model_name': 'cmbert',
+'model_name': 'mmbert',
 'encoder_checkpoint': 'distilbert/distilbert-base-uncased' ,
 'hidden_dropout_prob': 0.2 ,
 'modality_att_dropout_prob': 0.3 ,
 'hidden_size': 768 ,
-'projection_size': 768 ,
+'projection_size': 30 ,
 'num_labels': 2 ,
 
 # training arguments
-'batch_size': 24 ,
+'batch_size': 8 ,
 'num_epochs': 3,
+'patience': 1,
 'chunk_size': None,
 'criterion': 'crossentropyloss',
 'optimizer': 'adamw',
@@ -19,8 +20,8 @@ singlerun_configuration = {
 'scheduler_type': 'linear' ,
 'warmup_steps_ratio': 0.0 ,
 'best_model_metric': 'accuracy' ,
-'save_best_model': False,
-'save_model_dest': 'models/'
+'save_best_model': True,
+'save_model_dest': 'models/class'
 }
 
 # # model hyperparameters

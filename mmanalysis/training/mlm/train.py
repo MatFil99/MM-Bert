@@ -99,13 +99,14 @@ def evaluation(model, dataloader, metrics_names=['perplexity']):
 
 
 # def train(num_epochs,):
-def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_scheduler, criterion=None, metrics=None, task=None, best_model_metric='perplexity'):
+def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optimizer, lr_scheduler, criterion=None, metrics=None, task=None, best_model_metric='perplexity'):
     num_training_steps = num_epochs * len(train_dataloader)
     progress_bar = tqdm(range(num_training_steps))
     train_loss = []
     valid_eval = []
     best_eval = np.finfo(np.float32).max # 
     best_model = model
+    worse_count = 0
 
     for epoch in range(1, num_epochs+1):
         model.train()
@@ -135,9 +136,15 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
         if valid_evaluation[best_model_metric] < best_eval:
             best_model = copy.deepcopy(model)
             best_eval = valid_evaluation[best_model_metric]
+            worse_count = 0
+        else:
+            worse_count += 1
 
         train_loss.append(cum_loss)
         valid_eval.append(valid_evaluation)
+
+        if worse_count > patience:
+            break
     
     return best_model, train_loss, valid_eval
 
@@ -161,7 +168,6 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     if dsdeploy:
         ds.deploy()
 
-    # model
 
     # split data into train, valid, test datasets
     train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds)
@@ -194,7 +200,7 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     )
     
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    data_collator = MMMLMDataCollator(tokenizer=tokenizer, return_tensors='pt', device=device)
+    data_collator = MMMLMDataCollator(tokenizer=tokenizer, wwm_probability=training_arguments.wwm_probability, return_tensors='pt', device=device)
     
     batch_size = training_arguments.batch_size
   
@@ -202,6 +208,7 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     valid_dataloader = DataLoader(lm_datasets['valid'], shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(lm_datasets['test'], batch_size=batch_size, collate_fn=data_collator)
 
+    # model
     if model_name == 'cmbert':
         ModelClass = CMBertForMaskedLM
     elif model_name == 'mmbert':
@@ -239,6 +246,7 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         train_dataloader=train_dataloader,
         valid_dataloader=valid_dataloader,
         num_epochs=training_arguments.num_epochs,
+        patience=training_arguments.patience,
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
     )
@@ -248,36 +256,42 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         dataloader=test_dataloader,
     )
 
+    datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     result = {
+        'datetime_run': datetime_run,
         'dataset_config': dataset_config.__dict__,
         'training_arguments': training_arguments.__dict__,
         'model_config': model_config.__dict__,
+        'model_name': model_name,
         'train_loss': train_loss,
         'valid_eval': valid_eval,
         'test_eval': test_eval,
     }
 
-
-
     save_result(result, results_path)
 
-    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + results_path.split('/')[-1][8:-6]
-    full_path = training_arguments.save_model_dest + '/' + model_checkpoint_name
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
+    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
     if training_arguments.save_best_model:
         best_model.save_pretrained(
             save_directory=full_path,
             state_dict=best_model.state_dict(),
         )
 
-    with open('params_best_model.txt', 'w+') as fd:
-        for params in best_model.parameters():
-            fd.write(str(params))
 
-    
-    from mmanalysis.models.mmbert import MMBertForSequenceClassification
-    model_loaded = MMBertForSequenceClassification.from_pretrained(full_path)
 
-    with open('params_model_loaded.txt', 'w+') as fd:
-        for params in model_loaded.parameters():
-            fd.write(str(params))
+    # with open('params_best_model.txt', 'w+') as fd:
+    #     for params in best_model.parameters():
+    #         fd.write(str(params))
+ 
+    # from mmanalysis.models.mmbert import MMBertForSequenceClassification
+    # model_loaded = MMBertForSequenceClassification.from_pretrained(full_path)
+
+    # from mmanalysis.models.cmbert import CMBertForSequenceClassification
+    # model_loaded = CMBertForSequenceClassification.from_pretrained(full_path, num_classes=2)
+
+
+    # with open('params_model_loaded.txt', 'w+') as fd:
+    #     for params in model_loaded.parameters():
+    #         fd.write(str(params))
 

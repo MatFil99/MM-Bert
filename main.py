@@ -50,7 +50,9 @@ def main_single_run(args):
     num_labels,
     batch_size,
     num_epochs,
+    patience,
     chunk_size,
+    wwm_probability,
     criterion,
     optimizer,
     layer_specific_optimization,
@@ -76,7 +78,9 @@ def main_single_run(args):
     training_arguments = TrainingArgs(
         batch_size = batch_size,
         num_epochs = num_epochs,
-        chunk_size=chunk_size,
+        patience = patience,
+        chunk_size = chunk_size,
+        wwm_probability = wwm_probability,
         criterion = criterion,
         optimizer = optimizer,
         layer_specific_optimization = layer_specific_optimization,
@@ -102,11 +106,9 @@ def main_single_run(args):
         num_labels=num_labels,
         best_model_metric=best_model_metric,
     )
-
-    print(ModelConfigClass)
-    print(model_config)
     
-    results_path = 'experiments/results_' + model_name + '_' + datetime_start + '.jsonl'
+    # results_path = 'experiments/results_' + model_name + '_' + datetime_start + '.jsonl'
+    results_path = 'experiments/' + args.task + '/results_' + model_name + '_' + datetime_start + '.jsonl'
     train.main(
         model_name=model_name,
         dataset_config=dataset_config,
@@ -123,6 +125,8 @@ def main_multirun(args):
     datetime_start = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     
     datasets, runs_config = get_multirun_configuration(**multirun_configuration)
+
+    print("Number of runs configurations: {}".format(len(runs_config)))
 
     for dataset in datasets:
         ds = dataset.upper()
@@ -148,7 +152,9 @@ def main_multirun(args):
                 num_labels,
                 batch_size,
                 num_epochs,
+                patience,
                 chunk_size,
+                wwm_probability,
                 criterion,
                 optimizer,
                 layer_specific_optimization,
@@ -184,7 +190,9 @@ def main_multirun(args):
             training_arguments = TrainingArgs(
                 batch_size = batch_size,
                 num_epochs = num_epochs,
-                chunk_size=chunk_size,
+                patience = patience,
+                chunk_size = chunk_size,
+                wwm_probability = wwm_probability,
                 criterion = criterion,
                 optimizer = optimizer,
                 layer_specific_optimization = layer_specific_optimization,
@@ -210,7 +218,7 @@ def main_multirun(args):
                 best_model_metric = best_model_metric,
             )
             
-            results_path = 'experiments/results_' + model_name + '_' + datetime_start + '.jsonl'
+            results_path = 'experiments/' + args.task + '/results_' + model_name + '_' + datetime_start + '.jsonl'
 
             train.main(
                 model_name=model_name,
