@@ -1,6 +1,6 @@
 multirun_configuration = {
 # dataset setting 
-'datasets': ['cmumosi'] ,
+'datasets': ['cmumosei'] , # 'cmumosei' 'cmumosi'
 'text_features': ['RAWTEXT'],
 'audio_features': ['COVAREP', None],
 'visual_features': ['FACET42', None] ,
@@ -8,7 +8,7 @@ multirun_configuration = {
 # model hyperparameters
 'model_names': ['cmbert', 'mmbert'],
 'encoder_checkpoints': ['distilbert/distilbert-base-uncased'] ,
-'hidden_dropout_prob': [0.1, 0.2],
+'hidden_dropout_prob': [0.2],
 'modality_att_dropout_prob': [0.3],
 'freeze_params': [True, False],
 'hidden_size': [768] ,
@@ -17,7 +17,7 @@ multirun_configuration = {
 
 # training arguments
 'batch_size': [8] ,
-'num_epochs': [20] ,
+'num_epochs': [40] ,
 'patience': [2],
 'chunk_size': [128],
 'wwm_probability': [0.2],

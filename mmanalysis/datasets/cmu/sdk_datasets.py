@@ -8,6 +8,7 @@ class SDKDatasets(dict):
         self['SDK_PATH'] = sdk_path
         self['CMUMOSI'] = {}
         self['CMUMOSEI'] = {}
+        self['POM'] = {}
         self.initialize_datasets_config()
 
     def initialize_datasets_config(self):
@@ -61,6 +62,33 @@ class SDKDatasets(dict):
         }
         self['CMUMOSEI']['LABELS'] = {
             'featuresname': 'CMU_MOSEI_Labels',
+            'feat_size': 1,
+            'modality': 'label'
+        }
+
+        # POM
+        self['POM']['RAWTEXT'] = {
+            'featuresname': 'POM_TimestampedWords',
+            'feat_size': 1,
+            'modality': 'rawtext'
+        }
+        self['POM']['COVAREP'] = {
+            'featuresname': 'POM_COVAREP',
+            'feat_size': 43,
+            'modality': 'audio'
+        }
+        self['POM']['FACET42'] = {
+            'featuresname': 'POM_Facet_42',
+            'feat_size': 35,
+            'modality': 'visual'
+        }
+        self['POM']['OPENFACE2'] = {
+            'featuresname': 'POM_OpenFace2',
+            'feat_size': 709, # after selection just useful features
+            'modality': 'visual'
+        }
+        self['POM']['LABELS'] = {
+            'featuresname': 'POM_Labels',
             'feat_size': 1,
             'modality': 'label'
         }

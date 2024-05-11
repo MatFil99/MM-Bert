@@ -1,24 +1,24 @@
-multirun_configuration = {
+contrain_configuration = {
 # dataset setting 
-'datasets': ['cmumosei'] , # 'cmumosei' 'cmumosi'
+'datasets': ['cmumosi'] , # 'cmumosei'
 'text_features': ['RAWTEXT'],
-'audio_features': ['COVAREP', None],
-'visual_features': ['FACET42', None] ,
+'audio_features': [None], # values depends on pretrained model
+'visual_features': [None] , # values depends on pretrained model
 
 # model hyperparameters
-'model_names': ['cmbert', 'mmbert'],
+'model_names': [None], # values depends on pretrained model
 'encoder_checkpoints': ['distilbert/distilbert-base-uncased'] ,
-'hidden_dropout_prob': [0.1, 0.2],
+'hidden_dropout_prob': [0.2],
 'modality_att_dropout_prob': [0.3],
 'freeze_params': [True],
-'hidden_size': [768] ,
-'projection_size': [30, 768] ,
+'hidden_size': [768] , # values depends on pretrained model
+'projection_size': [None] , # values depends on pretrained model
 'num_labels': [1] ,
 
 # training arguments
 'batch_size': [8],
 'num_epochs': [4], # 
-'patience': [1],
+'patience': [3],
 'chunk_size': [None],
 'criterion': ['mseloss'],
 'optimizer': ['adamw'] ,

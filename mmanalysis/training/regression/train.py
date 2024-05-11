@@ -1,6 +1,7 @@
 import copy 
 from datetime import datetime
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 import transformers
@@ -87,7 +88,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
     valid_eval = []
 
     best_model = copy.deepcopy(model)
-    best_eval = 0.0
+    best_eval = np.finfo(np.float32).max # 
     worse_count = 0
 
     for epoch in range(num_epochs):
@@ -119,7 +120,14 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
         print(f'Epoch {epoch + 1} / {num_epochs}')
         print(f'Training loss: {cum_loss}')
         print('Validation: ', valid_evaluation)
-        if valid_evaluation[best_model_metric] > best_eval:
+        if best_model_metric in ['mse', 'mae']: # adapt decision about best model
+            best_coeff = -1
+        else:
+            best_coeff = 1
+
+        print(valid_evaluation[best_model_metric])
+
+        if valid_evaluation[best_model_metric] * best_coeff > best_eval * best_coeff:
             best_model = copy.deepcopy(model)
             best_eval = valid_evaluation[best_model_metric]
             worse_count = 0
@@ -135,7 +143,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
     return best_model, train_loss, valid_eval
 
 
-def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
+def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None, dsdeploy=False):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
@@ -154,7 +162,16 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     elif model_name == 'mmbert':
         ModelClass = MMBertForSequenceClassification
 
-    model = ModelClass(config=model_config)
+    if pretrained_checkpoint is not None:
+        model = ModelClass.from_pretrained(pretrained_checkpoint, 
+                                           num_classes=model_config.num_classes)
+        if model_config.freeze_params:
+            if model_name == 'cmbert': # incompatibility, but pretrained models
+                model.freeze_parameters()
+            else:
+                model.freeze_params()
+    else:
+        model = ModelClass(config=model_config)
     # model = MMBertForSequenceClassification(config=model_config)
     
     # task used for metric definition
@@ -239,6 +256,7 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
 
     datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     result = {
+        'datetime_run': datetime_run,
         'dataset_config': dataset_config.__dict__,
         'training_arguments': training_arguments.__dict__,
         'model_name': model_name,

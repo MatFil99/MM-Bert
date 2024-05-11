@@ -35,19 +35,23 @@ from mmanalysis.utils import (
 
 
 def prepare_data_splits(ds, num_labels):
+    
     ds.labels_2_class(num_classes=num_labels)
-
+ 
     folds = {
-        'train': standard_folds.standard_train_fold,
-        'valid': standard_folds.standard_valid_fold,
-        'test': standard_folds.standard_test_fold,
+        'train': standard_folds[ds.dsname].standard_train_fold,
+        'valid': standard_folds[ds.dsname].standard_valid_fold,
+        'test': standard_folds[ds.dsname].standard_test_fold,
         }
    
     ds.train_test_valid_split(folds=folds)
+    
     ds.replace_inf_and_nan_values(value=0)
+    
     ds.computational_sequences_2_array()
+    
     ds.words_2_sentences()
-
+ 
     train_ds = CmuDataset.from_dataset(ds, fold='train')
     test_ds = CmuDataset.from_dataset(ds, fold='test')
     valid_ds = CmuDataset.from_dataset(ds, fold='valid')
@@ -140,7 +144,7 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
     return best_model, train_loss, valid_eval
 
 
-def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
+def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None, dsdeploy=False):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
@@ -160,7 +164,16 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     elif model_name == 'mmbert':
         ModelClass = MMBertForSequenceClassification
     
-    model = ModelClass(config=model_config)
+    if pretrained_checkpoint is not None:
+        model = ModelClass.from_pretrained(pretrained_checkpoint, 
+                                           num_classes=model_config.num_classes)
+        if model_config.freeze_params:
+            if model_name == 'cmbert': # incompatibility, but pretrained models
+                model.freeze_parameters()
+            else:
+                model.freeze_params()
+    else:
+        model = ModelClass(config=model_config)
     
 
     # task used for metric definition 
@@ -248,6 +261,7 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     print(calculated_metrics)
 
     result = {
+        'datetime_run': datetime_run,
         'dataset_config': dataset_config.__dict__,
         'training_arguments': training_arguments.__dict__,
         'model_config': model_config.__dict__,
