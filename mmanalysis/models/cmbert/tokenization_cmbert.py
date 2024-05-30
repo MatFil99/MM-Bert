@@ -4,6 +4,7 @@ from typing import Dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 import torch
 import numpy as np
+import copy
 
 # class MultimodalTokenizer(PreTrainedTokenizer):
 class CMBertTokenizer():
@@ -37,13 +38,6 @@ class CMBertTokenizer():
                 try:
                     audio[i] = audio[i][word_ids] # adjust audio to word tokens (if word was splitted, then we need to align audio)
                 except:
-                    # print(f'len {len(audio[i])}')
-                    # print(f'word_ids {word_ids}')
-                    
-                    # 1
-                    # word_ids = [min(id, len(audio[i])-1) for id in word_ids]
-
-                    # 2
                     tokens = tokenized.tokens(i)
                     tokens = [t for t in tokens if t not in ['[PAD]', '[CLS]', '[SEP]']]
 
@@ -62,14 +56,7 @@ class CMBertTokenizer():
             if visual is not None:
                 try:
                     visual[i] = visual[i][word_ids] # adjust visual - same as above
-                except:
-                    # print(f'len {len(visual[i])}')
-                    # print(f'word_ids {word_ids}')
-                    
-                    # 1
-                    word_ids = [min(id, len(visual[i])-1) for id in word_ids]
-                    
-                    # 2
+                except:                  
                     tokens = tokenized.tokens(i)
                     tokens = [t for t in tokens if t not in ['[PAD]', '[CLS]', '[SEP]']]
 
@@ -81,6 +68,7 @@ class CMBertTokenizer():
                     word_ids = self.get_new_word_ids(word_ids, words_map)
                     
                     visual[i] = visual[i][word_ids] # adjust visual - same as above
+
 
                 new_visual_i = np.pad(visual[i], ((1,max_lenght - len(visual[i]) - 1), (0,0)), constant_values=0)
                 visual_padded.append(new_visual_i)
@@ -147,3 +135,85 @@ class CMBertTokenizer():
                 
     def get_new_word_ids(self, word_ids, words_map):
         return [words_map[id] for id in word_ids]
+    
+
+    # backup
+    # def __call__(self, text, audio, visual, padding=True, truncation=False, return_tensors='pt', device='cpu'):
+        # if return_tensors is None:
+        #     tokenized = self.text_tokenizer(text, padding=padding, truncation=truncation)
+        # else:
+        #     tokenized = self.text_tokenizer(text, padding=padding, truncation=truncation, return_tensors=return_tensors).to(device)
+        #     max_lenght = tokenized.input_ids[0].shape[0]
+
+        # audio_padded = []
+        # visual_padded = []
+        # for i in range(len(tokenized['input_ids'])):
+        #     max_lenght = len(tokenized.input_ids[i])
+        #     word_ids = [word_id for word_id in tokenized.word_ids(i) if word_id is not None]
+            
+        #     # pad audio, visual data - two reserved for START and END tokens
+        #     if audio is not None:
+        #         try:
+        #             audio[i] = audio[i][word_ids] # adjust audio to word tokens (if word was splitted, then we need to align audio)
+        #         except:
+        #             # print(f'len {len(audio[i])}')
+        #             # print(f'word_ids {word_ids}')
+                    
+        #             # 1
+        #             # word_ids = [min(id, len(audio[i])-1) for id in word_ids]
+
+        #             # 2
+        #             tokens = tokenized.tokens(i)
+        #             tokens = [t for t in tokens if t not in ['[PAD]', '[CLS]', '[SEP]']]
+
+        #             token_words = self.get_token_words(tokens)
+
+        #             my_tokens = text[i].split()
+
+        #             words_map = self.get_words_map(token_words, my_tokens)
+        #             word_ids = self.get_new_word_ids(word_ids, words_map)
+                    
+        #             audio[i] = audio[i][word_ids]
+                    
+        #         new_audio_i = np.pad(audio[i], ((1,max_lenght - len(audio[i]) - 1), (0,0)), constant_values=0)
+        #         audio_padded.append(new_audio_i)
+                
+        #     if visual is not None:
+        #         try:
+        #             visual[i] = visual[i][word_ids] # adjust visual - same as above
+        #         except:
+        #             # print(f'len {len(visual[i])}')
+        #             # print(f'word_ids {word_ids}')
+                    
+        #             # 1
+        #             word_ids = [min(id, len(visual[i])-1) for id in word_ids]
+                    
+        #             # 2
+        #             tokens = tokenized.tokens(i)
+        #             tokens = [t for t in tokens if t not in ['[PAD]', '[CLS]', '[SEP]']]
+
+        #             token_words = self.get_token_words(tokens)
+
+        #             my_tokens = text[i].split()
+
+        #             words_map = self.get_words_map(token_words, my_tokens)
+        #             word_ids = self.get_new_word_ids(word_ids, words_map)
+                    
+        #             visual[i] = visual[i][word_ids] # adjust visual - same as above
+
+        #         new_visual_i = np.pad(visual[i], ((1,max_lenght - len(visual[i]) - 1), (0,0)), constant_values=0)
+        #         visual_padded.append(new_visual_i)
+
+        # if return_tensors is not None:
+        #     tokenized['audio_data'] = np.array(audio_padded)
+        #     tokenized['visual_data'] = np.array(visual_padded)
+        #     if return_tensors == 'pt':
+        #         tokenized['audio_data'] = torch.tensor(tokenized['audio_data']).to(torch.float32)
+        #         tokenized['visual_data'] = torch.tensor(tokenized['visual_data']).to(torch.float32)
+        # elif audio is not None or visual is not None:
+        #     if audio is not None:
+        #         tokenized['audio_data'] = audio_padded
+        #     if visual is not None:
+        #         tokenized['visual_data'] = visual_padded
+            
+        # return tokenized

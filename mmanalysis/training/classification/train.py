@@ -50,7 +50,12 @@ def prepare_data_splits(ds, num_labels):
     
     ds.computational_sequences_2_array()
     
-    ds.words_2_sentences()
+    # ds.words_2_sentences()
+    
+    ds.bytes_2_str()
+
+    # print(ds.dataset.keys())
+    # print(ds.dataset['train']['text_feat'][0])
  
     train_ds = CmuDataset.from_dataset(ds, fold='train')
     test_ds = CmuDataset.from_dataset(ds, fold='test')
@@ -220,6 +225,21 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     valid_dataloader = DataLoader(valid_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(test_ds, batch_size=batch_size, collate_fn=data_collator)
     
+    # for batch in train_dataloader:
+    #     t_shape = batch['input_ids'].shape
+    #     a_shape = batch['audio_data'].shape
+    #     v_shape = batch['visual_data'].shape
+    #     att_shape = batch['attention_mask'].shape
+    #     if t_shape[1]==a_shape[1] and t_shape[1]==v_shape[1] and t_shape[1]==att_shape[1]:
+    #         pass
+    #     else:
+    #         print(batch['input_ids'].shape[1])
+    #         print(batch['audio_data'].shape[1])
+    #         print(batch['visual_data'].shape[1])
+    #         print(batch['attention_mask'].shape[1])
+    #         exit(1)
+        # break
+    # exit(1)
     # classification metrics
     metrics = ['accuracy', 'f1']
 

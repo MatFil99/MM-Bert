@@ -53,8 +53,19 @@ class CmuDataset(Dataset):
             # print(f'before {len(self.labels_ds[self.labels_name].keys())}'
             # print(f"before {len(self.dataset[self.feature_names['audio_feat']].keys())}")
 
+
+
             self.append_labels_to_dataset()
-            self.remove_unmatched_segments()
+
+            # self.remove_unmatched_segments()
+
+            valid = self.check_alignment()
+            if valid:
+                print("Dane wyrownane poprawnie")
+            else:
+                print("Blad wyrownania")
+                exit(1)
+
             # self.align_to_labels()
             # print(f"after {len(self.dataset[self.feature_names['audio_feat']].keys())}")
             # print(f"after {len(self.dataset[self.feature_names['text_feat']].keys())}")
@@ -76,20 +87,27 @@ class CmuDataset(Dataset):
 
         if config.preprocess and not ds and not config.load_preprocessed:
             # for testing
-            # self._cut_to_n_videos(10)
+            # print(len(self.dataset[self.feature_names['text_feat']].keys()))
+            # self._cut_to_n_videos(20)
             # self.remove_unmatched_segments()
-            
-            self.align_features(mode='text_feat')
-            # print(f'text_feat liczba segmentow: {len(self.dataset[self.feature_names["text_feat"]].keys())}')
-            # # print(f'visual_feat liczba segmentow: {len(self.dataset[self.feature_names["visual_feat"]].keys())}')
-            # print(f'audio_feat liczba segmentow: {len(self.dataset[self.feature_names["audio_feat"]].keys())}')
 
+            
+            self.align_features(mode='text_feat')          
             self.remove_special_text_tokens(keep_aligned=True)
+
+            self.dataset.impute(self.feature_names['text_feat'])
+
             self.append_labels_to_dataset() # append labels to dataset and then align data to labels
             self.align_to_labels()
-            # self.remove_unmatched_segments()
+
             self.preprocessed = config.preprocess
-        
+
+            valid = self.check_alignment()
+            if valid:
+                print("Dane wyrownane poprawnie")
+            else:
+                print("Blad wyrownania")
+                exit(1)
 
             # self.remove_unmatched_segments() ??
 
@@ -98,7 +116,42 @@ class CmuDataset(Dataset):
         # # print(f'visual_feat liczba segmentow: {len(self.dataset[self.feature_names["visual_feat"]].keys())}')
         # print(f'audio_feat liczba segmentow: {len(self.dataset[self.feature_names["audio_feat"]].keys())}')
             
-        
+    def check_alignment(self):
+        print(self.dataset.keys())
+        valid = True
+        for feat in self.feature_names.values():
+            print(f"feat {feat}: {len(self.dataset[feat].keys())}")
+            
+
+        for segid in self.dataset[self.feature_names['text_feat']].keys():
+            text_shape = -1
+            audio_shape = -1
+            visual_shape = -1
+
+            if segid in self.dataset[self.feature_names['text_feat']].keys():
+                text_shape = self.dataset[self.feature_names['text_feat']][segid]['features'].shape
+            if segid in self.dataset[self.feature_names['audio_feat']].keys():
+                audio_shape = self.dataset[self.feature_names['audio_feat']][segid]['features'].shape
+            if segid in self.dataset[self.feature_names['visual_feat']].keys():
+                visual_shape = self.dataset[self.feature_names['visual_feat']][segid]['features'].shape
+
+            if text_shape != -1 and audio_shape != -1 and visual_shape != -1:
+                if text_shape[0]==audio_shape[0] and text_shape[0]==visual_shape[0]:
+                    pass
+                else:
+                    valid = False
+                    print(text_shape)
+                    print(audio_shape)
+                    print(visual_shape)
+            else:
+                valid = False
+                print(text_shape)
+                print(audio_shape)
+                print(visual_shape)
+
+        return valid
+
+
     @classmethod
     def from_dataset(cls, cmudataset, fold):
         audio_feat = cmudataset.feature_names['audio_feat'] if 'audio_feat' in cmudataset.feature_names else None
@@ -142,6 +195,7 @@ class CmuDataset(Dataset):
 
     def _standardize_loaded_data(self):
         """
+
         """
         dictdata = {feat: defaultdict(dict) for feat in self.dataset.keys()}
         # intervals = defaultdict(dict)
@@ -268,7 +322,7 @@ class CmuDataset(Dataset):
                     missing_segments.add(segment)
             if not self.preprocessed and segment not in self.labels_ds[label_feat].keys():
                 missing_segments.add(segment)
-        
+
         for segment in missing_segments:
             for feat in self.dataset.keys():
                 if segment in self.dataset[feat].keys():
@@ -277,10 +331,11 @@ class CmuDataset(Dataset):
 
             if segment in self.labels_ds[label_feat].keys():
                 del self.labels_ds.computational_sequences[label_feat].data[segment]
-            
+
     def remove_special_text_tokens(self, tokens = [b'sp'], keep_aligned=True):
         """
         keep_aligned - parameter that defines if remove corresponding segments from other's modality data
+        all features must be aligned to text - then each segment contain just one word
         """
         text_comseq = self.dataset.computational_sequences[self.feature_names['text_feat']]
         
@@ -381,6 +436,25 @@ class CmuDataset(Dataset):
 
         return features #, np.array(labels).squeeze(1)
 
+    def bytes_2_str(self):
+        """
+        """
+        for fold in self.dataset.keys():
+            ds = self.dataset[fold]
+            self._bytes_2_str(ds)
+
+    def _bytes_2_str(self, ds, filter=[b'sp'], encoding='utf-8'):
+        str_words = []
+        text_features = ds['text_feat']
+
+
+        
+        for bwords in text_features:
+            str_words.append([bw.decode(encoding) for bw in bwords.squeeze(1) if bw not in filter])
+            
+
+        ds['text_feat'] = str_words
+
     def words_2_sentences(self, fold=None):
         """
         """
@@ -476,15 +550,22 @@ class CmuDataset(Dataset):
                 elif self.dsname == 'cmumosei':
                     newlabels = np.array([self._label_2_two_class(val) for val in ds[segid]['features'][:,0]])
                 elif self.dsname == 'pom':
-                    newlabels = np.array([self._label_2_two_class_pom(val) for val in ds[segid]['features'][:,0]])
+                    # pom labels range [1, 7] - move to [-3, 3]
+                    newlabels = np.array([self._label_2_two_class(val-4) for val in ds[segid]['features'][:,0]])
             elif num_classes == 7: # only for cmumosi and cmumosei
                 if self.dsname == 'cmumosi':
                     newlabels = np.array([self._label_2_seven_classes(val) for val in ds[segid]['features'][:].squeeze(1)])
-                else: 
+                elif self.dsname == 'cmumosei': 
                     newlabels = np.array([self._label_2_seven_classes(val) for val in ds[segid]['features'][:,0]])
+                elif self.dsname == 'pom':
+                    # pom labels range [1, 7] - move to [-3, 3]
+                    newlabels = np.array([self._label_2_seven_classes(val-4) for val in ds[segid]['features'][:,0]])
             elif num_classes == 1:
-                if self.dsname != 'cmumosi':
+                if self.dsname == 'cmumosei':
                     newlabels = np.array([val for val in ds[segid]['features'][:,0]])
+                elif self.dsname == 'pom':
+                    # pom labels range [1, 7] - move to [-3, 3]                    
+                    newlabels = np.array([val-4 for val in ds[segid]['features'][:,0]])
             classes[segid]['features'] = newlabels
             classes[segid]['intervals'] = ds[segid]['intervals'][:]
 
@@ -501,14 +582,6 @@ class CmuDataset(Dataset):
             res = 1
 
         return res
-
-    def _label_2_two_class_pom(self,a):
-        if a == 1:
-            return 0
-        elif a == 2:
-            return 1
-        else:
-            return -1
 
     def _label_2_seven_classes(self, a):
         if a < -2:
@@ -527,4 +600,4 @@ class CmuDataset(Dataset):
             res = 6
         
         return res
-    
+
