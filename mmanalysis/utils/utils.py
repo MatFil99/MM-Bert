@@ -4,6 +4,9 @@ import numpy as np
 import torch.nn as nn
 from torch.optim import AdamW, SGD, Adam, RMSprop, Adadelta
 
+# from ..models.cmbert import CMBertTokenizer
+# from ..models.mmbert import MMBertTokenizer
+
 
 def avg(intervals: np.array, features: np.array) -> np.array:
     try:
@@ -20,7 +23,7 @@ def group_texts(examples, chunk_size):
     # Concatenate all texts
     concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
     # Compute length of concatenated texts
-    total_length = len(concatenated_examples[list(examples.keys())[0]])
+    total_length = len(concatenated_examples['input_ids'])
     # We drop the last chunk if it's smaller than chunk_size
     total_length = (total_length // chunk_size) * chunk_size
     # Split by chunks of max_len
@@ -73,9 +76,18 @@ def get_optimizer(optimizer_name, **kwargs):
     elif optimizer_name == 'adadelta':
         return Adadelta(**kwargs)
 
+# def get_tokenizer(model_name):
+#     if model_name == 'cmbert':
+#         return CMBertTokenizer
+#     elif model_name == 'mmbert':
+#         return MMBertTokenizer
 
 def save_result(result, path):
     with open(path, 'a+') as fd:
         json.dump(result, fd)
         fd.write('\n')
    
+def get_model_modality_abbreviation():
+    abbr = ''
+
+    return abbr

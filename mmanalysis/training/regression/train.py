@@ -1,5 +1,7 @@
 import copy 
+from datetime import datetime
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 import transformers
@@ -33,34 +35,6 @@ from mmanalysis.utils import (
 )
 
 
-class TrainingArgs():
-
-    def __init__(self,
-                 batch_size = 8,
-                 num_epochs = 3,
-                 criterion = 'crossentropy',
-                 optimizer = 'adamw',
-                 lr = 2e-5,
-                 scheduler_type = 'linear',
-                 warmup_steps_ratio = 0.0,
-                 best_model_metric = 'accuracy',
-                 best_model_path = None,
-                 save_best_model = False,
-                 save_model_dest = None,
-                 ) -> None:
-        self.batch_size = batch_size
-        self.num_epochs = num_epochs
-        self.criterion = criterion
-        self.optimizer = optimizer
-        self.lr = lr
-        self.scheduler_type = scheduler_type
-        self.warmup_steps_ratio = warmup_steps_ratio
-        self.best_model_metric = best_model_metric
-        self.save_best_model = save_best_model
-        self.best_model_path = best_model_path
-        self.save_model_dest = save_model_dest
-
-
 def prepare_data_splits(ds, num_labels):
     ds.labels_2_class(num_classes=num_labels)
 
@@ -85,7 +59,7 @@ def prepare_data_splits(ds, num_labels):
 def evaluation(model, dataloader, criterion, metrics_names, task):
     model.eval()
 
-    loss = 0
+    loss = 0.0
     metrics = {metric: evaluate.load(metric) for metric in metrics_names}
 
     with torch.no_grad():
@@ -94,29 +68,19 @@ def evaluation(model, dataloader, criterion, metrics_names, task):
             logits = model(**batch)['logits']
             loss += criterion(logits, batch['labels'])
 
-            if 'accuracy' in metrics_names:
-                predictions = torch.argmax(logits, dim=-1)
-            else:
-                predictions = logits
-
-
             for name, metric in metrics.items():
-                metric.add_batch(predictions=predictions, references=batch['labels'])
+                metric.add_batch(predictions=logits, references=batch['labels'])
 
         calculated_metrics = {}
         for name, metric in metrics.items():
-            # if neighter binary classification nor regression
-            if task not in ['c2', 'r'] and name in ['f1']:
-                metric_evaluation = metric.compute(average='weighted')
-            else:
-                metric_evaluation = metric.compute()
+            metric_evaluation = metric.compute()
             calculated_metrics.update(metric_evaluation)
 
         calculated_metrics['loss'] = loss.item()
 
     return calculated_metrics
 
-def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_scheduler, criterion, metrics, task, best_model_metric):
+def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optimizer, lr_scheduler, criterion, metrics, task, best_model_metric):
     # num_epochs = 3
     num_training_steps = num_epochs * len(train_dataloader)
     progress_bar = tqdm(range(num_training_steps))
@@ -124,7 +88,8 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
     valid_eval = []
 
     best_model = copy.deepcopy(model)
-    best_eval = 0.0
+    best_eval = np.finfo(np.float32).max # 
+    worse_count = 0
 
     for epoch in range(num_epochs):
         
@@ -155,17 +120,30 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
         print(f'Epoch {epoch + 1} / {num_epochs}')
         print(f'Training loss: {cum_loss}')
         print('Validation: ', valid_evaluation)
-        if valid_evaluation[best_model_metric] > best_eval:
+        if best_model_metric in ['mse', 'mae']: # adapt decision about best model
+            best_coeff = -1
+        else:
+            best_coeff = 1
+
+        print(valid_evaluation[best_model_metric])
+
+        if valid_evaluation[best_model_metric] * best_coeff > best_eval * best_coeff:
             best_model = copy.deepcopy(model)
             best_eval = valid_evaluation[best_model_metric]
+            worse_count = 0
+        else:
+            worse_count += 1
 
         train_loss.append(cum_loss)
         valid_eval.append(valid_evaluation)
 
+        if worse_count > patience:
+            break
+
     return best_model, train_loss, valid_eval
 
 
-def main(dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
+def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None, dsdeploy=False):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
@@ -173,21 +151,31 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     if device == torch.device('cuda'):
         torch.cuda.manual_seed_all(seed)
     
-
     # dataset
     ds = CmuDataset(dataset_config)
     if dsdeploy:
         ds.deploy()
     
     # model
-    model = CMBertForSequenceClassification(config=model_config)
+    if model_name == 'cmbert':
+        ModelClass = CMBertForSequenceClassification
+    elif model_name == 'mmbert':
+        ModelClass = MMBertForSequenceClassification
+
+    if pretrained_checkpoint is not None:
+        model = ModelClass.from_pretrained(pretrained_checkpoint, 
+                                           num_classes=model_config.num_classes)
+        if model_config.freeze_params:
+            if model_name == 'cmbert': # incompatibility, but pretrained models
+                model.freeze_parameters()
+            else:
+                model.freeze_params()
+    else:
+        model = ModelClass(config=model_config)
     # model = MMBertForSequenceClassification(config=model_config)
-    if model_config.num_classes == 1:
-        task = 'r'
-    elif model_config.num_classes == 2:
-        task = 'c2'
-    elif model_config.num_classes == 7:
-        task = 'c7'
+    
+    # task used for metric definition
+    task = 'r'
 
     # split data into train, valid, test datasets
     train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds, num_labels=model_config.num_classes)
@@ -197,8 +185,7 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
 
 
     # Prepare optimizer parameters
-    if ('audio_feat' in dataset_config.feature_names 
-        or 'visual_feat' in dataset_config.feature_names):
+    if training_arguments.layer_specific_optimization:
         parameters = set_optimizer_custom_parameters(
             model=model,
         )
@@ -215,20 +202,22 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     model.to(device)
     criterion.to(device)
 
-    # tokenizer = MMBertTokenizer(checkpoint=model_config.encoder_checkpoint)
-    tokenizer = CMBertTokenizer(checkpoint=model_config.encoder_checkpoint)
+    
+    # tokenizer
+    if model_name == 'cmbert':
+        TokenizerClass = CMBertTokenizer
+    elif model_name == 'mmbert':
+        TokenizerClass = MMBertTokenizer
+
+    tokenizer = TokenizerClass(checkpoint=model_config.encoder_checkpoint)
 
     data_collator = MMSeqClassDataCollator(tokenizer=tokenizer, num_labels=model_config.num_classes, device=device)
     train_dataloader = DataLoader(train_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     valid_dataloader = DataLoader(valid_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(test_ds, batch_size=batch_size, collate_fn=data_collator)
     
-
-    if model_config.num_classes == 1: # regression
-        metrics = ['mse', 'mae', 'pearsonr']
-    else: # classification
-        metrics = ['accuracy', 'f1']
-
+    # regression
+    metrics = ['mse', 'mae', 'pearsonr']
 
     num_epochs = training_arguments.num_epochs
     num_training_steps = num_epochs*len(train_dataloader)
@@ -239,13 +228,12 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
         num_training_steps=num_training_steps,
     )
 
-    # print(model_config)
-
     best_model, train_loss, valid_eval = train(
         model=model,
         train_dataloader=train_dataloader,
         valid_dataloader=valid_dataloader,
         num_epochs=num_epochs,
+        patience=training_arguments.patience,
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
         criterion=criterion,
@@ -255,14 +243,6 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     )
 
     best_model = model
-
-    full_path = training_arguments.save_model_dest + '/' + model_config.encoder_checkpoint.split('/')[-1]
-    
-    if training_arguments.save_best_model:
-        best_model.save_pretrained(
-            save_directory=full_path,
-            state_dict=best_model.state_dict(),
-        )
 
     calculated_metrics = evaluation(
         model=best_model, 
@@ -274,9 +254,12 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
 
     print(calculated_metrics)
 
+    datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     result = {
+        'datetime_run': datetime_run,
         'dataset_config': dataset_config.__dict__,
         'training_arguments': training_arguments.__dict__,
+        'model_name': model_name,
         'model_config': model_config.__dict__,
         'train_loss': train_loss,
         'valid_eval': valid_eval,
@@ -284,3 +267,12 @@ def main(dataset_config, model_config, training_arguments, results_path='experim
     }
 
     save_result(result, results_path)
+
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
+    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
+
+    if training_arguments.save_best_model:
+        best_model.save_pretrained(
+            save_directory=full_path,
+            state_dict=best_model.state_dict(),
+        )

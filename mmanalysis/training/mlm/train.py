@@ -12,11 +12,9 @@ from tqdm.auto import tqdm
 from datasets.dataset_dict import DatasetDict
 from datasets import Dataset
 
-import model_config
-
 
 from mmanalysis.models.cmbert import (
-    CMBertConfig,
+    # CMBertConfig,
     CMBertForMaskedLM,
     CMBertTokenizer,
 )
@@ -43,39 +41,6 @@ from mmanalysis.utils import (
     set_optimizer_custom_parameters
 )
 
-# from transformers import default_data_collator
-
-class TrainingArgs():
-
-    def __init__(self,
-                 batch_size = 8,
-                 num_epochs = 3,
-                 criterion = 'crossentropy',
-                 optimizer = 'adamw',
-                 lr = 2e-5,
-                 scheduler_type = 'linear',
-                 warmup_steps_ratio = 0.0,
-                 best_model_metric = 'accuracy',
-                 best_model_path = None,
-                 save_best_model = False,
-                 save_model_dest = None,
-                 ) -> None:
-        self.batch_size = batch_size
-        self.num_epochs = num_epochs
-        self.criterion = criterion
-        self.optimizer = optimizer
-        self.lr = lr
-        self.scheduler_type = scheduler_type
-        self.warmup_steps_ratio = warmup_steps_ratio
-        self.best_model_metric = best_model_metric
-        self.save_best_model = save_best_model
-        self.best_model_path = best_model_path
-        self.save_model_dest = save_model_dest
-
-    def __str__(self) -> str:
-        return str(self.__dict__.items())
-
-
 def prepare_data_splits(ds):
 
     folds = {
@@ -97,8 +62,14 @@ def prepare_data_splits(ds):
 
 
 def tokenize_function(batch, *args, **kwargs):
-    audio = [np.array(element) for element in batch['audio_feat']]
-    visual = [np.array(element) for element in batch['visual_feat']]
+    if 'audio_feat' in batch:
+        audio = [np.array(element) for element in batch['audio_feat']]
+    else:
+        audio = None
+    if 'visual_feat' in batch:
+        visual = [np.array(element) for element in batch['visual_feat']]
+    else:
+        visual = None
     
     tokenizer = kwargs['tokenizer']
     tokenized = tokenizer(text=batch['text_feat'], audio=audio, visual=visual, padding=False, return_tensors=None)
@@ -107,9 +78,10 @@ def tokenize_function(batch, *args, **kwargs):
 
     return tokenized
 
-def evaluation(model, dataloader, metrics_names=None):
+def evaluation(model, dataloader, metrics_names=['perplexity']):
     model.eval()
     losses = []
+
     for step, batch in enumerate(dataloader):
         with torch.no_grad():
             outputs = model(**batch)
@@ -117,7 +89,6 @@ def evaluation(model, dataloader, metrics_names=None):
         loss = outputs.loss
         losses.append(loss.unsqueeze(0))
 
-    # losses = torch.cat(losses)
     losses = torch.tensor(losses[: len(dataloader)])
     try:
         perplexity = math.exp(torch.mean(losses))
@@ -128,13 +99,14 @@ def evaluation(model, dataloader, metrics_names=None):
 
 
 # def train(num_epochs,):
-def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_scheduler, criterion=None, metrics=None, task=None, best_model_metric='perplexity'):
+def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optimizer, lr_scheduler, criterion=None, metrics=None, task=None, best_model_metric='perplexity'):
     num_training_steps = num_epochs * len(train_dataloader)
     progress_bar = tqdm(range(num_training_steps))
     train_loss = []
     valid_eval = []
     best_eval = np.finfo(np.float32).max # 
     best_model = model
+    worse_count = 0
 
     for epoch in range(1, num_epochs+1):
         model.train()
@@ -164,13 +136,19 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, optimizer, lr_s
         if valid_evaluation[best_model_metric] < best_eval:
             best_model = copy.deepcopy(model)
             best_eval = valid_evaluation[best_model_metric]
+            worse_count = 0
+        else:
+            worse_count += 1
 
         train_loss.append(cum_loss)
         valid_eval.append(valid_evaluation)
+
+        if worse_count > patience:
+            break
     
     return best_model, train_loss, valid_eval
 
-def main(dataset_config, _model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
+def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
@@ -178,14 +156,18 @@ def main(dataset_config, _model_config, training_arguments, results_path='experi
     if device == torch.device('cuda'):
         torch.cuda.manual_seed_all(seed)
 
-    tokenizer = CMBertTokenizer(checkpoint=model_config.encoder_checkpoint)
+    if model_name == 'cmbert':
+        TokenizerClass = CMBertTokenizer
+    elif model_name == 'mmbert':
+        TokenizerClass = MMBertTokenizer
+
+    tokenizer = TokenizerClass(checkpoint=model_config.encoder_checkpoint)
 
     # dataset
     ds = CmuDataset(dataset_config)
     if dsdeploy:
         ds.deploy()
 
-    # model
 
     # split data into train, valid, test datasets
     train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds)
@@ -194,40 +176,49 @@ def main(dataset_config, _model_config, training_arguments, results_path='experi
         'train': Dataset.from_dict(train_ds.dataset),
         'valid': Dataset.from_dict(valid_ds.dataset),
         'test': Dataset.from_dict(test_ds.dataset),
-        # 'train': Dataset.from_dict(train_ds[:225]),
-        # 'valid': Dataset.from_dict(valid_ds[:225]),
-        # 'test': Dataset.from_dict(test_ds[:225]),
     })
+
+    remove_columns = []
+    if 'text_feat' in dataset_config.feature_names:
+        remove_columns.append('text_feat')
+    if 'audio_feat' in dataset_config.feature_names:
+        remove_columns.append('audio_feat')
+    if 'visual_feat' in dataset_config.feature_names:
+        remove_columns.append('visual_feat')
 
     tokenized_datasets = dsdict.map(
         tokenize_function, 
         batched=True, 
-        remove_columns=['text_feat', 'audio_feat', 'visual_feat'],
+        remove_columns=remove_columns,
         fn_kwargs={'tokenizer': tokenizer}
     )
 
     lm_datasets = tokenized_datasets.map(
         group_texts,
         batched=True,
-        # fn_kwargs={'chunk_size': training_arguments.chunk_size}
-        fn_kwargs={'chunk_size': 128}
+        fn_kwargs={'chunk_size': training_arguments.chunk_size}
     )
     
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    data_collator = MMMLMDataCollator(tokenizer=tokenizer, return_tensors='pt', device=device)
+    data_collator = MMMLMDataCollator(tokenizer=tokenizer, wwm_probability=training_arguments.wwm_probability, return_tensors='pt', device=device)
     
-    batch_size = 8
+    batch_size = training_arguments.batch_size
   
     train_dataloader = DataLoader(lm_datasets['train'], shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     valid_dataloader = DataLoader(lm_datasets['valid'], shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(lm_datasets['test'], batch_size=batch_size, collate_fn=data_collator)
 
-    model = CMBertForMaskedLM(_model_config)
+    # model
+    if model_name == 'cmbert':
+        ModelClass = CMBertForMaskedLM
+    elif model_name == 'mmbert':
+        ModelClass = MMBertForMaskedLM
+
+    model = ModelClass(model_config)
     model.to(device)
 
     # Prepare optimizer
-    if ('audio_feat' in dataset_config.feature_names 
-        or 'visual_feat' in dataset_config.feature_names):
+    if training_arguments.layer_specific_optimization:
         parameters = set_optimizer_custom_parameters(
             model=model,
         )
@@ -255,6 +246,7 @@ def main(dataset_config, _model_config, training_arguments, results_path='experi
         train_dataloader=train_dataloader,
         valid_dataloader=valid_dataloader,
         num_epochs=training_arguments.num_epochs,
+        patience=training_arguments.patience,
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
     )
@@ -264,68 +256,42 @@ def main(dataset_config, _model_config, training_arguments, results_path='experi
         dataloader=test_dataloader,
     )
 
+    datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     result = {
+        'datetime_run': datetime_run,
         'dataset_config': dataset_config.__dict__,
         'training_arguments': training_arguments.__dict__,
-        'model_config': _model_config.__dict__,
+        'model_config': model_config.__dict__,
+        'model_name': model_name,
         'train_loss': train_loss,
         'valid_eval': valid_eval,
         'test_eval': test_eval,
     }
 
     save_result(result, results_path)
-    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + results_path.split('/')[-1][8:24]
 
-    full_path = training_arguments.save_model_dest + '/' + model_checkpoint_name
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
+    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
     if training_arguments.save_best_model:
         best_model.save_pretrained(
             save_directory=full_path,
             state_dict=best_model.state_dict(),
         )
 
-if __name__ =='__main__':
-    ds = 'CMUMOSI'
-    text_features = SDK_DS[ds]['RAWTEXT']['featuresname']
-    audio_features = SDK_DS[ds]['COVAREP']['featuresname']
-    visual_features = SDK_DS[ds]['FACET42']['featuresname']
-    labels = SDK_DS[ds]['LABELS']['featuresname']
 
-    dataset_config = CmuDatasetConfig(
-        sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
-        dataset = ds,
-        text_features = text_features,
-        audio_features = audio_features,
-        visual_features = visual_features,
-        labels = labels,
-        preprocess = False,
-        load_preprocessed = True,
-    )
 
-    _model_config = CMBertConfig(
-        encoder_checkpoint=model_config.encoder_checkpoint,
-        modality_att_dropout_prob=model_config.modality_att_dropout_prob,
-        hidden_dropout_prob=model_config.hidden_dropout_prob,
-        hidden_size=model_config.hidden_size,
-        audio_feat_size=SDK_DS[ds]['COVAREP']['feat_size'],
-        visual_feat_size=SDK_DS[ds]['FACET42']['feat_size'],
-        projection_size=model_config.projection_size,
-        num_labels=model_config.num_labels,
-        best_model_metric=model_config.best_model_metric,
-    )
+    # with open('params_best_model.txt', 'w+') as fd:
+    #     for params in best_model.parameters():
+    #         fd.write(str(params))
+ 
+    # from mmanalysis.models.mmbert import MMBertForSequenceClassification
+    # model_loaded = MMBertForSequenceClassification.from_pretrained(full_path)
 
-    training_arguments = TrainingArgs(
-        batch_size = model_config.batch_size,
-        num_epochs = model_config.num_epochs,
-        criterion = model_config.criterion,
-        optimizer = model_config.optimizer,
-        lr = model_config.lr,
-        scheduler_type = model_config.scheduler_type,
-        warmup_steps_ratio = model_config.warmup_steps_ratio,
-        save_best_model = True, # 
-        save_model_dest = model_config.save_model_dest   
-    )
+    # from mmanalysis.models.cmbert import CMBertForSequenceClassification
+    # model_loaded = CMBertForSequenceClassification.from_pretrained(full_path, num_classes=2)
 
-    results_path = 'experiments/results_' + datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S') + '.jsonl'
 
-    main(dataset_config=dataset_config, _model_config=_model_config, training_arguments=training_arguments, results_path=results_path)
-    
+    # with open('params_model_loaded.txt', 'w+') as fd:
+    #     for params in model_loaded.parameters():
+    #         fd.write(str(params))
+

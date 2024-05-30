@@ -31,73 +31,6 @@ from mmsdk import mmdatasdk as md
 from mmsdk.mmdatasdk.configurations.metadataconfigs import featuresetMetadataTemplate
 
 
-# class SDKDatasets(dict):
-
-#     def __init__(self):
-#         super(SDKDatasets, self).__init__()
-#         self['SDK_PATH'] = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK'
-#         self['CMUMOSI'] = {}
-#         self['CMUMOSEI'] = {}
-#         self.initialize_datasets_config()
-
-#     def initialize_datasets_config(self):
-#         # CMUMOSI
-#         self['CMUMOSI']['RAWTEXT'] = {
-#             'featuresname': 'CMU_MOSI_TimestampedWords',
-#             'feat_size': 1,
-#             'modality': 'rawtext'
-#         }
-#         self['CMUMOSI']['COVAREP'] = {
-#             'featuresname': 'CMU_MOSI_COVAREP',
-#             'feat_size': 74,
-#             'modality': 'audio'
-#         }
-#         self['CMUMOSI']['OPENSMILE'] = {
-#             'featuresname': 'CMU_MOSI_openSMILE_IS09',
-#             'feat_size': 384,
-#             'modality': 'audio'
-#         }
-#         self['CMUMOSI']['FACET42'] = {
-#             'featuresname': 'CMU_MOSI_Visual_Facet_42',
-#             'feat_size': 35,
-#             'modality': 'visual'
-#         }
-#         self['CMUMOSI']['LABELS'] = {
-#             'featuresname': 'CMU_MOSI_Opinion_Labels',
-#             'feat_size': 1,
-#             'modality': 'label'
-#         }
-
-#         # CMUMOSEI
-#         self['CMUMOSEI']['RAWTEXT'] = {
-#             'featuresname': 'CMU_MOSEI_TimestampedWords',
-#             'feat_size': 1,
-#             'modality': 'rawtext'
-#         }
-#         self['CMUMOSEI']['COVAREP'] = {
-#             'featuresname': 'CMU_MOSEI_COVAREP',
-#             'feat_size': 74,
-#             'modality': 'audio'
-#         }
-#         self['CMUMOSEI']['FACET42'] = {
-#             'featuresname': 'CMU_MOSEI_VisualFacet42',
-#             'feat_size': 35,
-#             'modality': 'visual'
-#         }
-#         self['CMUMOSEI']['OPENFACE2'] = {
-#             'featuresname': 'CMU_MOSEI_VisualOpenFace2',
-#             'feat_size': 709, # after selection just useful features
-#             'modality': 'visual'
-#         }
-#         self['CMUMOSEI']['LABELS'] = {
-#             'featuresname': 'CMU_MOSEI_Labels',
-#             'feat_size': 1,
-#             'modality': 'label'
-#         }
-
-# SDK_DS = SDKDatasets()
-
-
 
 class CmuDataset(Dataset):
 
@@ -114,6 +47,21 @@ class CmuDataset(Dataset):
             self.dataset = ds
         else:
             self.dataset, self.labels_ds = self.load_data()
+
+        if config.load_preprocessed:
+            # print(f'before {len(self.dataset.keys())}')
+            # print(f'before {len(self.labels_ds[self.labels_name].keys())}'
+            # print(f"before {len(self.dataset[self.feature_names['audio_feat']].keys())}")
+
+            self.append_labels_to_dataset()
+            self.remove_unmatched_segments()
+            # self.align_to_labels()
+            # print(f"after {len(self.dataset[self.feature_names['audio_feat']].keys())}")
+            # print(f"after {len(self.dataset[self.feature_names['text_feat']].keys())}")
+            # print(f"after {len(self.dataset[self.feature_names['visual_feat']].keys())}")
+            # print(f'after {len(self.dataset[self.labels_name].keys())}')
+
+        # print(f"data type: {self.dataset.computational_sequences['CMU_MOSI_COVAREP'].data}")
 
         if config.load_preprocessed:
             self._standardize_loaded_data()
@@ -140,8 +88,8 @@ class CmuDataset(Dataset):
             # self.remove_unmatched_segments()
             self.preprocessed = config.preprocess
         
-        if config.load_preprocessed:
-            self.append_labels_to_dataset()
+
+            # self.remove_unmatched_segments() ??
 
         # print(f'labels liczba segmentow: {len(self.dataset[self.labels_name].keys())}')
         # print(f'text_feat liczba segmentow: {len(self.dataset[self.feature_names["text_feat"]].keys())}')
@@ -406,6 +354,19 @@ class CmuDataset(Dataset):
         
         for segid in segments:
             for feat_key, feat_name in self.feature_names.items():
+                
+                # print(' = = = = = = =  = = = = = = = = = = = = ')
+                # print(f"segments: {ds[feat_name].keys()}")
+                # print(f"segid {segid}")
+                with open('dataset.log', 'a+') as fd:
+                    fd.write(' = = = = = = =  = = = = = = = = = = = = \n')
+                    fd.write(f"segments: {len(ds[feat_name].keys())}\n")
+                    fd.write(f"segid {segid}\n")
+                    fd.write(f'feat_key {feat_key}\n')
+                    fd.write(f'feat_name {feat_name}\n')
+                    fd.write(f'feature_names {self.feature_names}\n')
+                    fd.write(f'ds.keys {ds.keys()}\n')
+
                 feat_values = ds[feat_name][segid]['features']
                 features[feat_key].append(feat_values)
 
@@ -508,10 +469,20 @@ class CmuDataset(Dataset):
         
         for segid in ds.keys():
             if num_classes == 2:
-                newlabels = np.array([self._label_2_two_class(val) for val in ds[segid]['features'][:].squeeze(1)])
-            elif num_classes == 7:
-                newlabels = np.array([self._label_2_seven_classes(val) for val in ds[segid]['features'][:].squeeze(1)])
-            
+                if self.dsname == 'cmumosi':
+                    newlabels = np.array([self._label_2_two_class(val) for val in ds[segid]['features'][:].squeeze(1)])
+                elif self.dsname == 'cmumosei':
+                    newlabels = np.array([self._label_2_two_class(val) for val in ds[segid]['features'][:,0]])
+                elif self.dsname == 'pom':
+                    newlabels = np.array([self._label_2_two_class_pom(val) for val in ds[segid]['features'][:,0]])
+            elif num_classes == 7: # only for cmumosi and cmumosei
+                if self.dsname == 'cmumosi':
+                    newlabels = np.array([self._label_2_seven_classes(val) for val in ds[segid]['features'][:].squeeze(1)])
+                else: 
+                    newlabels = np.array([self._label_2_seven_classes(val) for val in ds[segid]['features'][:,0]])
+            elif num_classes == 1:
+                if self.dsname != 'cmumosi':
+                    newlabels = np.array([val for val in ds[segid]['features'][:,0]])
             classes[segid]['features'] = newlabels
             classes[segid]['intervals'] = ds[segid]['intervals'][:]
 
@@ -529,6 +500,13 @@ class CmuDataset(Dataset):
 
         return res
 
+    def _label_2_two_class_pom(self,a):
+        if a == 1:
+            return 0
+        elif a == 2:
+            return 1
+        else:
+            return -1
 
     def _label_2_seven_classes(self, a):
         if a < -2:
