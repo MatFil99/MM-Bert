@@ -61,10 +61,12 @@ class CmuDataset(Dataset):
             # print(f"after {len(self.dataset[self.feature_names['visual_feat']].keys())}")
             # print(f'after {len(self.dataset[self.labels_name].keys())}')
 
+            self._standardize_loaded_data()
+
         # print(f"data type: {self.dataset.computational_sequences['CMU_MOSI_COVAREP'].data}")
 
-        if config.load_preprocessed:
-            self._standardize_loaded_data()
+        # if config.load_preprocessed:
+            
 
         # # print(f'labels liczba segmentow: {len(self.dataset[self.labels_name].keys())}')
         # print(f'text_feat liczba segmentow: {len(self.dataset[self.feature_names["text_feat"]].keys())}')
@@ -358,14 +360,14 @@ class CmuDataset(Dataset):
                 # print(' = = = = = = =  = = = = = = = = = = = = ')
                 # print(f"segments: {ds[feat_name].keys()}")
                 # print(f"segid {segid}")
-                with open('dataset.log', 'a+') as fd:
-                    fd.write(' = = = = = = =  = = = = = = = = = = = = \n')
-                    fd.write(f"segments: {len(ds[feat_name].keys())}\n")
-                    fd.write(f"segid {segid}\n")
-                    fd.write(f'feat_key {feat_key}\n')
-                    fd.write(f'feat_name {feat_name}\n')
-                    fd.write(f'feature_names {self.feature_names}\n')
-                    fd.write(f'ds.keys {ds.keys()}\n')
+                # with open('dataset.log', 'a+') as fd:
+                #     fd.write(' = = = = = = =  = = = = = = = = = = = = \n')
+                #     fd.write(f"segments: {len(ds[feat_name].keys())}\n")
+                #     fd.write(f"segid {segid}\n")
+                #     fd.write(f'feat_key {feat_key}\n')
+                #     fd.write(f'feat_name {feat_name}\n')
+                #     fd.write(f'feature_names {self.feature_names}\n')
+                #     fd.write(f'ds.keys {ds.keys()}\n')
 
                 feat_values = ds[feat_name][segid]['features']
                 features[feat_key].append(feat_values)
