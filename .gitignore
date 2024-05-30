@@ -165,3 +165,4 @@ parameters*.txt
 experiments/
 models/
 *.ipynb
+experiments.zip

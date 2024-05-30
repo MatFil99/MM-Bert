@@ -225,6 +225,8 @@ def main_multirun(args):
             
             results_path = 'experiments/' + args.task + '/results_' + model_name + '_' + datetime_start + '.jsonl'
 
+            print(dataset_config.__dict__)
+
             train.main(
                 model_name=model_name,
                 dataset_config=dataset_config,
