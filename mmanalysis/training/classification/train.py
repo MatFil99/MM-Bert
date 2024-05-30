@@ -50,9 +50,7 @@ def prepare_data_splits(ds, num_labels):
     
     ds.computational_sequences_2_array()
     
-    # ds.words_2_sentences()
-    
-    ds.bytes_2_str()
+    ds.words_2_sentences()
 
     # print(ds.dataset.keys())
     # print(ds.dataset['train']['text_feat'][0])

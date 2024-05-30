@@ -49,16 +49,7 @@ class CmuDataset(Dataset):
             self.dataset, self.labels_ds = self.load_data()
 
         if config.load_preprocessed:
-            # print(f'before {len(self.dataset.keys())}')
-            # print(f'before {len(self.labels_ds[self.labels_name].keys())}'
-            # print(f"before {len(self.dataset[self.feature_names['audio_feat']].keys())}")
-
-
-
             self.append_labels_to_dataset()
-
-            # self.remove_unmatched_segments()
-
             valid = self.check_alignment()
             if valid:
                 print("Dane wyrownane poprawnie")
@@ -74,16 +65,6 @@ class CmuDataset(Dataset):
 
             self._standardize_loaded_data()
 
-        # print(f"data type: {self.dataset.computational_sequences['CMU_MOSI_COVAREP'].data}")
-
-        # if config.load_preprocessed:
-            
-
-        # # print(f'labels liczba segmentow: {len(self.dataset[self.labels_name].keys())}')
-        # print(f'text_feat liczba segmentow: {len(self.dataset[self.feature_names["text_feat"]].keys())}')
-        # # print(f'visual_feat liczba segmentow: {len(self.dataset[self.feature_names["visual_feat"]].keys())}')
-        # print(f'audio_feat liczba segmentow: {len(self.dataset[self.feature_names["audio_feat"]].keys())}')
-        
 
         if config.preprocess and not ds and not config.load_preprocessed:
             # for testing
@@ -117,37 +98,47 @@ class CmuDataset(Dataset):
         # print(f'audio_feat liczba segmentow: {len(self.dataset[self.feature_names["audio_feat"]].keys())}')
             
     def check_alignment(self):
-        print(self.dataset.keys())
         valid = True
         for feat in self.feature_names.values():
             print(f"feat {feat}: {len(self.dataset[feat].keys())}")
             
 
         for segid in self.dataset[self.feature_names['text_feat']].keys():
-            text_shape = -1
-            audio_shape = -1
-            visual_shape = -1
+            # text_shape = -1
+            # audio_shape = -1
+            # visual_shape = -1
 
-            if segid in self.dataset[self.feature_names['text_feat']].keys():
-                text_shape = self.dataset[self.feature_names['text_feat']][segid]['features'].shape
-            if segid in self.dataset[self.feature_names['audio_feat']].keys():
-                audio_shape = self.dataset[self.feature_names['audio_feat']][segid]['features'].shape
-            if segid in self.dataset[self.feature_names['visual_feat']].keys():
-                visual_shape = self.dataset[self.feature_names['visual_feat']][segid]['features'].shape
+            shapes = {}
+            for feat in self.feature_names.values():
+                shapes[feat] = self.dataset[feat][segid]['features'].shape[0]
 
-            if text_shape != -1 and audio_shape != -1 and visual_shape != -1:
-                if text_shape[0]==audio_shape[0] and text_shape[0]==visual_shape[0]:
-                    pass
-                else:
+            # if segid in self.dataset[self.feature_names['text_feat']].keys():
+            #     text_shape = self.dataset[self.feature_names['text_feat']][segid]['features'].shape
+            # if segid in self.dataset[self.feature_names['audio_feat']].keys():
+            #     audio_shape = self.dataset[self.feature_names['audio_feat']][segid]['features'].shape
+            # if segid in self.dataset[self.feature_names['visual_feat']].keys():
+            #     visual_shape = self.dataset[self.feature_names['visual_feat']][segid]['features'].shape
+
+            for i in range(len(shapes.keys())-1):
+                shape_i0 = shapes[list(shapes.keys())[i]]
+                shape_i1 = shapes[list(shapes.keys())[i+1]]
+                if shape_i0 != shape_i1:
                     valid = False
-                    print(text_shape)
-                    print(audio_shape)
-                    print(visual_shape)
-            else:
-                valid = False
-                print(text_shape)
-                print(audio_shape)
-                print(visual_shape)
+                    print(shapes)
+
+            # if text_shape != -1 and audio_shape != -1 and visual_shape != -1:
+            #     if text_shape[0]==audio_shape[0] and text_shape[0]==visual_shape[0]:
+            #         pass
+            #     else:
+            #         valid = False
+            #         print(text_shape)
+            #         print(audio_shape)
+            #         print(visual_shape)
+            # else:
+            #     valid = False
+            #     print(text_shape)
+            #     print(audio_shape)
+            #     print(visual_shape)
 
         return valid
 
@@ -411,18 +402,6 @@ class CmuDataset(Dataset):
         
         for segid in segments:
             for feat_key, feat_name in self.feature_names.items():
-                
-                # print(' = = = = = = =  = = = = = = = = = = = = ')
-                # print(f"segments: {ds[feat_name].keys()}")
-                # print(f"segid {segid}")
-                # with open('dataset.log', 'a+') as fd:
-                #     fd.write(' = = = = = = =  = = = = = = = = = = = = \n')
-                #     fd.write(f"segments: {len(ds[feat_name].keys())}\n")
-                #     fd.write(f"segid {segid}\n")
-                #     fd.write(f'feat_key {feat_key}\n')
-                #     fd.write(f'feat_name {feat_name}\n')
-                #     fd.write(f'feature_names {self.feature_names}\n')
-                #     fd.write(f'ds.keys {ds.keys()}\n')
 
                 feat_values = ds[feat_name][segid]['features']
                 features[feat_key].append(feat_values)
@@ -443,17 +422,16 @@ class CmuDataset(Dataset):
             ds = self.dataset[fold]
             self._bytes_2_str(ds)
 
+
     def _bytes_2_str(self, ds, filter=[b'sp'], encoding='utf-8'):
         str_words = []
         text_features = ds['text_feat']
-
-
         
         for bwords in text_features:
             str_words.append([bw.decode(encoding) for bw in bwords.squeeze(1) if bw not in filter])
             
-
         ds['text_feat'] = str_words
+
 
     def words_2_sentences(self, fold=None):
         """

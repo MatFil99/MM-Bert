@@ -8,7 +8,7 @@ multirun_configuration = {
 # model hyperparameters
 'model_names': ['cmbert', 'mmbert'],
 'encoder_checkpoints': ['distilbert/distilbert-base-uncased'] ,
-'hidden_dropout_prob': [0.2],
+'hidden_dropout_prob': [0.1, 0.2],
 'modality_att_dropout_prob': [0.3],
 'freeze_params': [True],
 'hidden_size': [768] ,
