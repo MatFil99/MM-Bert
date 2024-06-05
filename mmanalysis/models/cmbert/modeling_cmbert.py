@@ -150,8 +150,6 @@ class ModalityAttention(nn.Module):
 
 class CMBertForMaskedLM(CMBertPretrainedModel):
 
-    _tied_weights_keys = ["vocab_projector.weight"]
-
     def __init__(self, config):
         super().__init__(config)
 
@@ -168,7 +166,6 @@ class CMBertForMaskedLM(CMBertPretrainedModel):
         self.vocab_layer_norm = nn.LayerNorm(config.hidden_size, eps=1e-12)
         self.vocab_projector = nn.Linear(config.hidden_size, config.vocab_size)
 
-        # Initialize weights and apply final processing
         self.post_init()
         if config.freeze_params:
             self.freeze_parameters()
@@ -193,10 +190,8 @@ class CMBertForMaskedLM(CMBertPretrainedModel):
         )
 
         hidden_states = outputs[0]
-        text_att = None
-        fusion_att = None
         if self.modality_fusion:
-            hidden_states, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, visual_data, attention_mask)
+            hidden_states = self.modality_fusion(hidden_states, audio_data, visual_data, attention_mask)[0]
 
         prediction_logits = self.vocab_transform(hidden_states)  # (bs, seq_length, dim)
         prediction_logits = self.activation(prediction_logits)  # (bs, seq_length, dim)
@@ -215,11 +210,9 @@ class CMBertForMaskedLM(CMBertPretrainedModel):
             loss=mlm_loss,
             logits=prediction_logits,
             hidden_states=outputs[0],
-            # attentions=,
         )
 
 
-# class CMBertForSequenceClassification(BertPreTrainedModel):
 class CMBertForSequenceClassification(CMBertPretrainedModel):
 
     def __init__(self, config): #, num_labels=2):
@@ -235,10 +228,9 @@ class CMBertForSequenceClassification(CMBertPretrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_classes)
 
-        # Initialize weights and apply final processing
-        
         self.post_init()
         if config.freeze_params:
+            print('FREEZE PARAMS')
             self.freeze_parameters()
 
     def forward(
@@ -249,7 +241,7 @@ class CMBertForSequenceClassification(CMBertPretrainedModel):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
         labels: Optional[torch.LongTensor] = None,
-    ): # -> Union[Tuple[torch.Tensor], SequenceClassifierOutput]:
+    ):
         
         outputs = self.encoder(
             input_ids,
@@ -262,7 +254,7 @@ class CMBertForSequenceClassification(CMBertPretrainedModel):
         if self.modality_fusion:
             hidden_states, text_att, fusion_att = self.modality_fusion(hidden_states, audio_data, visual_data, attention_mask)
     
-        pooled_output = hidden_states[:,0] # 
+        pooled_output = hidden_states[:,0]
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
 

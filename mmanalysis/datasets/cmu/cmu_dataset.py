@@ -57,21 +57,10 @@ class CmuDataset(Dataset):
                 print("Blad wyrownania")
                 exit(1)
 
-            # self.align_to_labels()
-            # print(f"after {len(self.dataset[self.feature_names['audio_feat']].keys())}")
-            # print(f"after {len(self.dataset[self.feature_names['text_feat']].keys())}")
-            # print(f"after {len(self.dataset[self.feature_names['visual_feat']].keys())}")
-            # print(f'after {len(self.dataset[self.labels_name].keys())}')
-
             self._standardize_loaded_data()
 
 
         if config.preprocess and not ds and not config.load_preprocessed:
-            # for testing
-            # print(len(self.dataset[self.feature_names['text_feat']].keys()))
-            # self._cut_to_n_videos(20)
-            # self.remove_unmatched_segments()
-
             
             self.align_features(mode='text_feat')          
             self.remove_special_text_tokens(keep_aligned=True)
@@ -90,13 +79,7 @@ class CmuDataset(Dataset):
                 print("Blad wyrownania")
                 exit(1)
 
-            # self.remove_unmatched_segments() ??
-
-        # print(f'labels liczba segmentow: {len(self.dataset[self.labels_name].keys())}')
-        # print(f'text_feat liczba segmentow: {len(self.dataset[self.feature_names["text_feat"]].keys())}')
-        # # print(f'visual_feat liczba segmentow: {len(self.dataset[self.feature_names["visual_feat"]].keys())}')
-        # print(f'audio_feat liczba segmentow: {len(self.dataset[self.feature_names["audio_feat"]].keys())}')
-            
+    
     def check_alignment(self):
         valid = True
         for feat in self.feature_names.values():
@@ -104,20 +87,10 @@ class CmuDataset(Dataset):
             
 
         for segid in self.dataset[self.feature_names['text_feat']].keys():
-            # text_shape = -1
-            # audio_shape = -1
-            # visual_shape = -1
 
             shapes = {}
             for feat in self.feature_names.values():
                 shapes[feat] = self.dataset[feat][segid]['features'].shape[0]
-
-            # if segid in self.dataset[self.feature_names['text_feat']].keys():
-            #     text_shape = self.dataset[self.feature_names['text_feat']][segid]['features'].shape
-            # if segid in self.dataset[self.feature_names['audio_feat']].keys():
-            #     audio_shape = self.dataset[self.feature_names['audio_feat']][segid]['features'].shape
-            # if segid in self.dataset[self.feature_names['visual_feat']].keys():
-            #     visual_shape = self.dataset[self.feature_names['visual_feat']][segid]['features'].shape
 
             for i in range(len(shapes.keys())-1):
                 shape_i0 = shapes[list(shapes.keys())[i]]
@@ -125,20 +98,6 @@ class CmuDataset(Dataset):
                 if shape_i0 != shape_i1:
                     valid = False
                     print(shapes)
-
-            # if text_shape != -1 and audio_shape != -1 and visual_shape != -1:
-            #     if text_shape[0]==audio_shape[0] and text_shape[0]==visual_shape[0]:
-            #         pass
-            #     else:
-            #         valid = False
-            #         print(text_shape)
-            #         print(audio_shape)
-            #         print(visual_shape)
-            # else:
-            #     valid = False
-            #     print(text_shape)
-            #     print(audio_shape)
-            #     print(visual_shape)
 
         return valid
 
@@ -176,7 +135,6 @@ class CmuDataset(Dataset):
             data[feat] = ds[feat][index]
         
         return data
-        # return super().__getitem__(index)
 
     def __len__(self) -> int:
         """
@@ -189,7 +147,6 @@ class CmuDataset(Dataset):
 
         """
         dictdata = {feat: defaultdict(dict) for feat in self.dataset.keys()}
-        # intervals = defaultdict(dict)
         
         for feat in self.dataset.keys():
             comseq = self.dataset[feat]
@@ -199,7 +156,6 @@ class CmuDataset(Dataset):
 
         for feat in dictdata.keys():
             self.dataset.computational_sequences[feat] = dictdata[feat]
-            # self.dataset.computational_sequences[feat] = features[feat]
 
     def replace_inf_and_nan_values(self, value=0):
         """
@@ -415,6 +371,21 @@ class CmuDataset(Dataset):
 
         return features #, np.array(labels).squeeze(1)
 
+    def features_as_dtype(self, dtype):
+        labels = self.dataset[self.labels_name]
+        for segid in labels.keys():
+            labels[segid]['features'] = labels[segid]['features'].astype(dtype)
+            
+            for feat in [f for f in self.feature_names.keys() if f!='text_feat']:
+                feature_name = self.feature_names[feat]
+                self.dataset[feature_name][segid]['features'] = self.dataset[feature_name][segid]['features'].astype(dtype)
+
+        # for feat in self.feature_names.keys():
+        #     if feat == 'text_feat':
+        #         continue
+        #     for segid in 
+
+
     def bytes_2_str(self):
         """
         """
@@ -513,6 +484,10 @@ class CmuDataset(Dataset):
             else:
                 for fold, ds in self.dataset.keys():
                     self._labels_2_class(ds, num_classes=num_classes)
+        elif num_classes == 1: # regression
+            if self.labels_name in self.dataset.keys():
+                ds = self.dataset
+                self._labels_2_class(ds, num_classes=num_classes)
 
 
     def _labels_2_class(self, dset, num_classes=2, inplace=True):
@@ -539,19 +514,23 @@ class CmuDataset(Dataset):
                     # pom labels range [1, 7] - move to [-3, 3]
                     newlabels = np.array([self._label_2_seven_classes(val-4) for val in ds[segid]['features'][:,0]])
             elif num_classes == 1:
-                if self.dsname == 'cmumosei':
+                if self.dsname == 'cmumosi':
+                    newlabels = ds[segid]['features'][:].squeeze(1)
+                elif self.dsname == 'cmumosei':
                     newlabels = np.array([val for val in ds[segid]['features'][:,0]])
+                    # newlabels = np.expand_dims(newlabels, axis=1) 
                 elif self.dsname == 'pom':
                     # pom labels range [1, 7] - move to [-3, 3]                    
                     newlabels = np.array([val-4 for val in ds[segid]['features'][:,0]])
-            classes[segid]['features'] = newlabels
+                    # newlabels = np.expand_dims(newlabels, axis=1) 
+                    
+            classes[segid]['features'] = newlabels #newlabels.reshape(newlabels.shape[0], 1) # to fit to output logits
             classes[segid]['intervals'] = ds[segid]['intervals'][:]
 
         if inplace:
             dset.computational_sequences[self.labels_name] = classes
         else:
             dset.computational_sequences['labels'] = classes
-
         
     def _label_2_two_class(self, a):
         if a <= 0:

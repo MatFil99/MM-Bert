@@ -45,15 +45,9 @@ def prepare_data_splits(ds, num_labels):
         }
    
     ds.train_test_valid_split(folds=folds)
-    
     ds.replace_inf_and_nan_values(value=0)
-    
     ds.computational_sequences_2_array()
-    
     ds.words_2_sentences()
-
-    # print(ds.dataset.keys())
-    # print(ds.dataset['train']['text_feat'][0])
  
     train_ds = CmuDataset.from_dataset(ds, fold='train')
     test_ds = CmuDataset.from_dataset(ds, fold='test')
@@ -223,22 +217,6 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     valid_dataloader = DataLoader(valid_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(test_ds, batch_size=batch_size, collate_fn=data_collator)
     
-    # for batch in train_dataloader:
-    #     t_shape = batch['input_ids'].shape
-    #     a_shape = batch['audio_data'].shape
-    #     v_shape = batch['visual_data'].shape
-    #     att_shape = batch['attention_mask'].shape
-    #     if t_shape[1]==a_shape[1] and t_shape[1]==v_shape[1] and t_shape[1]==att_shape[1]:
-    #         pass
-    #     else:
-    #         print(batch['input_ids'].shape[1])
-    #         print(batch['audio_data'].shape[1])
-    #         print(batch['visual_data'].shape[1])
-    #         print(batch['attention_mask'].shape[1])
-    #         exit(1)
-        # break
-    # exit(1)
-    # classification metrics
     metrics = ['accuracy', 'f1']
 
     num_epochs = training_arguments.num_epochs
@@ -264,10 +242,16 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         best_model_metric=model_config.best_model_metric,
     )
 
-    best_model = model
-
     datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
+    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
+    if training_arguments.save_best_model:
+        best_model.save_pretrained(
+            save_directory=full_path,
+            state_dict=best_model.state_dict(),
+        )
+
     calculated_metrics = evaluation(
         model=best_model, 
         dataloader=test_dataloader,
@@ -291,10 +275,3 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
 
     save_result(result, results_path)
 
-    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
-    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
-    if training_arguments.save_best_model:
-        best_model.save_pretrained(
-            save_directory=full_path,
-            state_dict=best_model.state_dict(),
-        )

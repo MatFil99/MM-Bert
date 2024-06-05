@@ -136,6 +136,7 @@ def main_multirun(args):
         i = 1
         for run_config in runs_config:
             print(f'config_run: {i} / {len(runs_config)}')
+            i+=1
             audio_features = None
             audio_feat_size = None
             visual_features = None
@@ -243,8 +244,10 @@ def main_contrain_run(args):
     
     datasets, runs_config = get_multirun_configuration(**contrain_configuration)
 
-    print(len(runs_config))
-    models_checkpoints = sorted(os.listdir(models_path), reverse=True)
+    models_checkpoints = sorted([dir for dir in os.listdir(models_path) if 'bert' in dir], reverse=True)
+
+    print(f'run_config: {len(runs_config)}')
+    print(f'models_checkpoints: {len(models_checkpoints)}')
 
     for dataset in datasets:
         ds = dataset.upper()
@@ -355,7 +358,7 @@ def main_contrain_run(args):
 def get_pretrained_model_run_config(checkpoint, exp_path):
     configs = None
     checkpoint_id = checkpoint[-16:]
-    files = os.listdir(exp_path)
+    files = [f for f in os.listdir(exp_path) if 'jsonl' in f]
     for file in files:
         with open(os.path.join(exp_path,file), 'r') as fd:
             configs = fd.readlines()

@@ -5,6 +5,7 @@ class MMSeqClassDataCollator():
     def __init__(self, tokenizer, num_labels=2 ,device=torch.device("cpu")) -> None:
         self.tokenizer = tokenizer
         self.device = device
+        self.num_labels = num_labels
         if num_labels == 1:
             self.labels_dtype = torch.float32
         else:
@@ -19,6 +20,10 @@ class MMSeqClassDataCollator():
             batch['visual_feat'] = None
 
         tokenized = self.tokenizer(text=batch['text_feat'], audio=batch['audio_feat'], visual=batch['visual_feat'], padding=True, truncation=True)
-        tokenized['labels'] = torch.tensor(batch['labels'], dtype=self.labels_dtype)
+        if self.num_labels == 1:
+            tokenized['labels'] = torch.tensor(batch['labels'], dtype=self.labels_dtype).unsqueeze(1)
+        else:
+            tokenized['labels'] = torch.tensor(batch['labels'], dtype=self.labels_dtype)
+
         tokenized.to(self.device)
         return  tokenized

@@ -1,6 +1,6 @@
 contrain_configuration = {
 # dataset setting 
-'datasets': ['cmumosi'] ,
+'datasets': ['cmumosei'] ,
 'text_features': ['RAWTEXT'],
 'audio_features': [None], # values depends on pretrained model
 'visual_features': [None] , # values depends on pretrained model

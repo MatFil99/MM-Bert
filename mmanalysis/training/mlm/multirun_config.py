@@ -3,7 +3,7 @@ multirun_configuration = {
 'datasets': ['cmumosei'] , # 'cmumosei' 'cmumosi'
 'text_features': ['RAWTEXT'],
 'audio_features': ['COVAREP', None],
-'visual_features': ['FACET42', None] ,
+'visual_features': ['FACET42', None],
 
 # model hyperparameters
 'model_names': ['cmbert', 'mmbert'],
@@ -13,11 +13,11 @@ multirun_configuration = {
 'freeze_params': [True, False],
 'hidden_size': [768] ,
 'projection_size': [30, 768] ,
-'num_labels': [None] ,
+'num_labels': [None],
 
 # training arguments
 'batch_size': [8] ,
-'num_epochs': [40] ,
+'num_epochs': [10],
 'patience': [2],
 'chunk_size': [128],
 'wwm_probability': [0.2],

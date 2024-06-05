@@ -4,7 +4,7 @@ singlerun_configuration = {
 'encoder_checkpoint': 'distilbert/distilbert-base-uncased' ,
 'hidden_dropout_prob': 0.2 ,
 'modality_att_dropout_prob': 0.3 ,
-'freeze_params': True,
+'freeze_params': False,
 'hidden_size': 768 ,
 'projection_size': 768,
 'num_labels': None,

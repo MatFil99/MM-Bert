@@ -171,6 +171,7 @@ class MMBertForMaskedLM(MMBertPretrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
         if config.freeze_params:
+            print('FREEZE PARAMS')
             self.freeze_params()
         
         self.mlm_loss_fct = nn.CrossEntropyLoss()
@@ -238,7 +239,7 @@ class MMBertForSequenceClassification(MMBertPretrainedModel):
         # Initialize weights and apply final processing
         
         self.post_init()
-        if self.freeze_params:
+        if config.freeze_params:
             self.freeze_params()
 
     def forward(

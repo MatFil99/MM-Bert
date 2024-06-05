@@ -111,4 +111,67 @@ def get_multirun_configuration(
         save_model_dest
     ]))
 
+    # all that uses only text modality
+    redundant = set(itertools.product(*[
+        text_features,
+        [None],
+        [None],
+        model_names,
+        encoder_checkpoints,
+        # load_pretrained,
+        hidden_dropout_prob,
+        modality_att_dropout_prob,
+        freeze_params,
+        hidden_size,
+        projection_size,
+        num_labels,
+        batch_size,
+        num_epochs,
+        patience,
+        chunk_size,
+        wwm_probability,
+        criterion,
+        optimizer,
+        layer_specific_optimization,
+        lr,
+        scheduler_type,
+        warmup_steps_ratio,
+        best_model_metric,
+        save_best_model,
+        save_model_dest
+    ]))
+
+    # all that uses only text modality
+    removed = set(itertools.product(*[
+        text_features,
+        [None],
+        [None],
+        model_names,
+        encoder_checkpoints,
+        # load_pretrained,
+        hidden_dropout_prob,
+        [0.3], # not used when just text modality
+        freeze_params,
+        hidden_size,
+        [30], # not used when just text modality
+        num_labels,
+        batch_size,
+        num_epochs,
+        patience,
+        chunk_size,
+        wwm_probability,
+        criterion,
+        optimizer,
+        layer_specific_optimization,
+        lr,
+        scheduler_type,
+        warmup_steps_ratio,
+        best_model_metric,
+        save_best_model,
+        save_model_dest
+    ]))
+    
+    runs_configuration = runs_configuration.difference(redundant)
+    runs_configuration = runs_configuration.union(removed)
+
     return datasets, runs_configuration

@@ -1,9 +1,9 @@
 multirun_configuration = {
 # dataset setting 
-'datasets': ['cmumosei'] , # 'cmumosei' 'cmumosi'
+'datasets': ['pom'] , # 'cmumosei' 'cmumosi'
 'text_features': ['RAWTEXT'],
 'audio_features': ['COVAREP', None],
-'visual_features': ['FACET42', None] ,
+'visual_features': ['FACET42', None],
 
 # model hyperparameters
 'model_names': ['cmbert', 'mmbert'],
@@ -12,7 +12,7 @@ multirun_configuration = {
 'modality_att_dropout_prob': [0.3],
 'freeze_params': [True],
 'hidden_size': [768] ,
-'projection_size': [30, 768] ,
+'projection_size': [30, 768],
 'num_labels': [2, 7] ,
 
 # training arguments
