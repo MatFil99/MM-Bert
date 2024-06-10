@@ -43,9 +43,6 @@ def set_optimizer_custom_parameters(
           no_decay_layers=['bias', 'LayerNorm.bias', 'LayerNorm.weight', 'norm.bias', 'norm.weight'],
           new_decay_layers=['modality_fusion']
           ):
-    # Prepare optimizer
-    # if ('audio_feat' in dataset_config.feature_names 
-    #     or 'visual_feat' in dataset_config.feature_names):
     param_optimizer = list(model.named_parameters())
     no_decay = no_decay_layers
     new_decay = new_decay_layers

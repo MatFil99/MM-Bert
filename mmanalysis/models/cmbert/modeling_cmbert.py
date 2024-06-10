@@ -17,15 +17,16 @@ class CMBertPretrainedModel(DistilBertPreTrainedModel):
     def __init__(self, config):
         super(CMBertPretrainedModel, self).__init__(config)
 
-    def freeze_parameters(self):
+    def freeze_parameters(self, freeze_params_layers):
         if self.config.encoder_checkpoint == 'google-bert/bert-base-uncased':
             encoder_layer = 'encoder.layer.'
         else:
             encoder_layer = 'transformer.layer.'
 
         for name, param in self.named_parameters():
-            param.requires_grad = False
-            for i in range(12):
+            if "encoder" in name:
+                param.requires_grad = False
+            for i in range(freeze_params_layers, 6):
                 if encoder_layer + str(i) in name:
                     param.requires_grad = True
             if 'modality_fusion' in name or 'pooler' in name:
@@ -167,8 +168,8 @@ class CMBertForMaskedLM(CMBertPretrainedModel):
         self.vocab_projector = nn.Linear(config.hidden_size, config.vocab_size)
 
         self.post_init()
-        if config.freeze_params:
-            self.freeze_parameters()
+        if config.freeze_params_layers!=0:
+            self.freeze_parameters(config.freeze_params_layers)
         
         self.mlm_loss_fct = nn.CrossEntropyLoss()
 
@@ -229,9 +230,9 @@ class CMBertForSequenceClassification(CMBertPretrainedModel):
         self.classifier = nn.Linear(config.hidden_size, config.num_classes)
 
         self.post_init()
-        if config.freeze_params:
+        if config.freeze_params_layers!=0:
             print('FREEZE PARAMS')
-            self.freeze_parameters()
+            self.freeze_parameters(config.freeze_params_layers)
 
     def forward(
         self,

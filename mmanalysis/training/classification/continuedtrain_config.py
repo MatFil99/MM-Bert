@@ -2,18 +2,18 @@ contrain_configuration = {
 # dataset setting 
 'datasets': ['cmumosei'] ,
 'text_features': ['RAWTEXT'],
-'audio_features': [None], # values depends on pretrained model
-'visual_features': [None] , # values depends on pretrained model
+'audio_features': ['COVAREP'], # values depends on pretrained model
+'visual_features': ['FACET42'] , # values depends on pretrained model
 
 # model hyperparameters
 'model_names': [None], # values depends on pretrained model
 'encoder_checkpoints': ['distilbert/distilbert-base-uncased'] ,
-'hidden_dropout_prob': [0.2],
+'hidden_dropout_prob': [0.1],
 'modality_att_dropout_prob': [0.3],
-'freeze_params': [True],
+'freeze_params_layers': [3],
 'hidden_size': [768] , # values depends on pretrained model
 'projection_size': [None] , # values depends on pretrained model
-'num_labels': [2, 7] , 
+'num_labels': [2] ,
 
 # training arguments
 'batch_size': [8] ,

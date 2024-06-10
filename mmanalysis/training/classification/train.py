@@ -7,6 +7,7 @@ import transformers
 from transformers import get_scheduler
 from tqdm.auto import tqdm
 import evaluate
+import numpy as np
 
 from mmanalysis.datacollators import MMSeqClassDataCollator
 
@@ -94,6 +95,8 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
 
     best_model = copy.deepcopy(model)
     best_eval = 0.0
+    # best_eval = np.finfo(np.float32).max
+
     worse_count = 0
 
     for epoch in range(num_epochs):
@@ -126,8 +129,10 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
         print(f'Training loss: {cum_loss}')
         print('Validation: ', valid_evaluation)
         if valid_evaluation[best_model_metric] > best_eval:
+        # if valid_evaluation['loss'] < best_eval:
             best_model = copy.deepcopy(model)
             best_eval = valid_evaluation[best_model_metric]
+            # best_eval = valid_evaluation['loss']
             worse_count = 0
         else:
             worse_count += 1
@@ -164,15 +169,20 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     if pretrained_checkpoint is not None:
         model = ModelClass.from_pretrained(pretrained_checkpoint, 
                                            num_classes=model_config.num_classes)
-        if model_config.freeze_params:
+        
+        if model_config.freeze_params_layers is not None:
             if model_name == 'cmbert': # incompatibility, but pretrained models
-                model.freeze_parameters()
+                model.freeze_parameters(model_config.freeze_params_layers)
             else:
-                model.freeze_params()
+                model.freeze_params(model_config.freeze_params_layers)
+
+        model.config.freeze_params_layers=model_config.freeze_params_layers
+        model.dropout.p = model_config.hidden_dropout_prob
+        model.modality_fusion.dropout.p = model_config.hidden_dropout_prob
+        model.modality_fusion.dropout1.p = model_config.modality_att_dropout_prob
     else:
         model = ModelClass(config=model_config)
     
-
     # task used for metric definition 
     if model_config.num_classes == 2:
         task = 'c2'

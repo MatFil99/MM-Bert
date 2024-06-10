@@ -16,15 +16,16 @@ class MMBertPretrainedModel(DistilBertPreTrainedModel):
     def __init__(self, config):
         super(MMBertPretrainedModel, self).__init__(config)
 
-    def freeze_params(self):
+    def freeze_params(self, freeze_params_layers):
         if self.config.encoder_checkpoint == 'google-bert/bert-base-uncased':
             encoder_layer = 'encoder.layer.'
         else:
             encoder_layer = 'transformer.layer.'
 
         for name, param in self.named_parameters():
-            param.requires_grad = False
-            for i in range(12):
+            if "encoder" in name:
+                param.requires_grad = False
+            for i in range(freeze_params_layers,6):
                 if encoder_layer + str(i) in name:
                     param.requires_grad = True
             if 'modality_fusion' in name or 'pooler' in name:
@@ -144,7 +145,7 @@ class ModalityAttention(nn.Module):
         hidden_states_new = self.dropout(hidden_states_new)
         hidden_states_new = self.norm(hidden_states_new)
 
-        hidden_states_new = fusion_data
+        # hidden_states_new = hidden_states_new
 
         return hidden_states_new, text_att, fusion_att1
 
@@ -170,9 +171,9 @@ class MMBertForMaskedLM(MMBertPretrainedModel):
 
         # Initialize weights and apply final processing
         self.post_init()
-        if config.freeze_params:
+        if config.freeze_params_layers!=0:
             print('FREEZE PARAMS')
-            self.freeze_params()
+            self.freeze_params(config.freeze_params_layers)
         
         self.mlm_loss_fct = nn.CrossEntropyLoss()
         
@@ -239,8 +240,8 @@ class MMBertForSequenceClassification(MMBertPretrainedModel):
         # Initialize weights and apply final processing
         
         self.post_init()
-        if config.freeze_params:
-            self.freeze_params()
+        if config.freeze_params_layers:
+            self.freeze_params(config.freeze_params_layers)
 
     def forward(
         self,
