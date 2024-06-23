@@ -42,11 +42,12 @@ from mmanalysis.utils import (
 )
 
 def prepare_data_splits(ds):
+    ds.features_as_dtype(np.float32)
 
     folds = {
-        'train': standard_folds.standard_train_fold,
-        'valid': standard_folds.standard_valid_fold,
-        'test': standard_folds.standard_test_fold,
+        'train': standard_folds[ds.dsname].standard_train_fold,
+        'valid': standard_folds[ds.dsname].standard_valid_fold,
+        'test': standard_folds[ds.dsname].standard_test_fold,
         }
    
     ds.train_test_valid_split(folds=folds)
@@ -251,12 +252,23 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         lr_scheduler=lr_scheduler,
     )
 
+    datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
+
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
+    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
+    if training_arguments.save_best_model:
+        best_model.save_pretrained(
+            save_directory=full_path,
+            state_dict=best_model.state_dict(),
+        )
+
     test_eval = evaluation(
-        model=model,
+        model=best_model,
         dataloader=test_dataloader,
     )
 
-    datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
+    print(test_eval)
+
     result = {
         'datetime_run': datetime_run,
         'dataset_config': dataset_config.__dict__,
@@ -270,28 +282,8 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
 
     save_result(result, results_path)
 
-    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
-    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
-    if training_arguments.save_best_model:
-        best_model.save_pretrained(
-            save_directory=full_path,
-            state_dict=best_model.state_dict(),
-        )
 
 
 
-    # with open('params_best_model.txt', 'w+') as fd:
-    #     for params in best_model.parameters():
-    #         fd.write(str(params))
- 
-    # from mmanalysis.models.mmbert import MMBertForSequenceClassification
-    # model_loaded = MMBertForSequenceClassification.from_pretrained(full_path)
 
-    # from mmanalysis.models.cmbert import CMBertForSequenceClassification
-    # model_loaded = CMBertForSequenceClassification.from_pretrained(full_path, num_classes=2)
-
-
-    # with open('params_model_loaded.txt', 'w+') as fd:
-    #     for params in model_loaded.parameters():
-    #         fd.write(str(params))
 

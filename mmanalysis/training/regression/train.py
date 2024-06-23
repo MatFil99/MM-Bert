@@ -39,9 +39,9 @@ def prepare_data_splits(ds, num_labels):
     ds.labels_2_class(num_classes=num_labels)
 
     folds = {
-        'train': standard_folds.standard_train_fold,
-        'valid': standard_folds.standard_valid_fold,
-        'test': standard_folds.standard_test_fold,
+        'train': standard_folds[ds.dsname].standard_train_fold,
+        'valid': standard_folds[ds.dsname].standard_valid_fold,
+        'test': standard_folds[ds.dsname].standard_test_fold,
         }
    
     ds.train_test_valid_split(folds=folds)
@@ -67,6 +67,17 @@ def evaluation(model, dataloader, criterion, metrics_names, task):
 
             logits = model(**batch)['logits']
             loss += criterion(logits, batch['labels'])
+
+            logitsnan = any(torch.isnan(logits))
+            logitsinf = any(torch.isinf(logits))
+            labelsnan = any(torch.isnan(batch["labels"]))
+            labelsinf = any(torch.isinf(batch["labels"]))
+
+            if logitsnan == True or logitsinf == True or labelsnan == True or labelsinf == True:
+                print(f'logits nan: {any(torch.isnan(logits))} logits inf: {any(torch.isinf(logits))}')
+                print(f'labels nan: {any(torch.isnan(batch["labels"]))} labels inf: {any(torch.isinf(batch["labels"]))}')
+                print(f'batch {batch}')
+                print(f'logits {logits}')
 
             for name, metric in metrics.items():
                 metric.add_batch(predictions=logits, references=batch['labels'])
@@ -125,8 +136,6 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
         else:
             best_coeff = 1
 
-        print(valid_evaluation[best_model_metric])
-
         if valid_evaluation[best_model_metric] * best_coeff > best_eval * best_coeff:
             best_model = copy.deepcopy(model)
             best_eval = valid_evaluation[best_model_metric]
@@ -166,14 +175,21 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         model = ModelClass.from_pretrained(pretrained_checkpoint, 
                                            num_classes=model_config.num_classes)
         if model_config.freeze_params:
-            if model_name == 'cmbert': # incompatibility, but pretrained models
+            if model_name == 'cmbert': # incompatibility, but pretrained models requires previous method names
                 model.freeze_parameters()
             else:
                 model.freeze_params()
+        model.config = model_config
     else:
         model = ModelClass(config=model_config)
     # model = MMBertForSequenceClassification(config=model_config)
     
+    # print(f'config: {model_config}')
+    # print(f'freeze  params: {model.config.freeze_params}')
+    # for name, param in model.named_parameters():
+    #     print(f'name: {name} :: {param.requires_grad}')    
+    # exit(1)
+
     # task used for metric definition
     task = 'r'
 
@@ -214,8 +230,13 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     data_collator = MMSeqClassDataCollator(tokenizer=tokenizer, num_labels=model_config.num_classes, device=device)
     train_dataloader = DataLoader(train_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     valid_dataloader = DataLoader(valid_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
-    test_dataloader = DataLoader(test_ds, batch_size=batch_size, collate_fn=data_collator)
+    test_dataloader = DataLoader(test_ds, batch_size=1, collate_fn=data_collator) # batch_size for testing = 1
     
+    # for batch in train_dataloader:
+    #     print(f'labels: { batch["labels"]}')
+    #     t_shape = batch['input_ids'].shape
+    #     exit(1)
+
     # regression
     metrics = ['mse', 'mae', 'pearsonr']
 
@@ -228,6 +249,10 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         num_training_steps=num_training_steps,
     )
 
+    # pretrained_checkpoint = r'models\reg\cmumosei_blad\mmbert_distilbert-base-uncased_01Jun2024_175030'
+    # best_model = ModelClass.from_pretrained(pretrained_checkpoint, num_classes=1)
+    # best_model.to(device)
+    
     best_model, train_loss, valid_eval = train(
         model=model,
         train_dataloader=train_dataloader,
@@ -242,7 +267,16 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         best_model_metric=model_config.best_model_metric,
     )
 
-    best_model = model
+    datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
+
+    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
+    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
+    if training_arguments.save_best_model:
+        best_model.save_pretrained(
+            save_directory=full_path,
+            state_dict=best_model.state_dict(),
+        )
+
 
     calculated_metrics = evaluation(
         model=best_model, 
@@ -251,10 +285,9 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         metrics_names=metrics,
         task=task,
         )
-
+    
     print(calculated_metrics)
 
-    datetime_run = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
     result = {
         'datetime_run': datetime_run,
         'dataset_config': dataset_config.__dict__,
@@ -267,12 +300,3 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     }
 
     save_result(result, results_path)
-
-    model_checkpoint_name = model_config.encoder_checkpoint.split('/')[-1] + '_' + datetime_run
-    full_path = training_arguments.save_model_dest + '/' + model_name + '_' + model_checkpoint_name
-
-    if training_arguments.save_best_model:
-        best_model.save_pretrained(
-            save_directory=full_path,
-            state_dict=best_model.state_dict(),
-        )

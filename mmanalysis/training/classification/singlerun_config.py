@@ -19,7 +19,7 @@ singlerun_configuration = {
 'lr': 2e-5 ,
 'scheduler_type': 'linear' ,
 'warmup_steps_ratio': 0.0 ,
-'best_model_metric': 'accuracy' ,
+'best_model_metric': 'accuracy',
 'save_best_model': True,
 'save_model_dest': 'models/class'
 }
