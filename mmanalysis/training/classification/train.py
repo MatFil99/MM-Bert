@@ -77,10 +77,11 @@ def evaluation(model, dataloader, criterion, metrics_names, task):
         calculated_metrics = {}
         for name, metric in metrics.items():
             # if neighter binary classification nor regression
-            if task not in ['c2'] and name in ['f1']:
+            if task not in ['c2'] and name in ['f1', 'precision', 'recall']:
                 metric_evaluation = metric.compute(average='weighted')
             else:
                 metric_evaluation = metric.compute()
+
             calculated_metrics.update(metric_evaluation)
 
         calculated_metrics['loss'] = loss.item()
@@ -144,6 +145,81 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
             break
 
     return best_model, train_loss, valid_eval
+
+def main_evaluate(checkpoints, dataset_config, task):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    seed = 7
+    
+    transformers.set_seed(seed)
+    torch.manual_seed(seed)
+    if device == torch.device('cuda'):
+        torch.cuda.manual_seed_all(seed)
+    
+    # dataset
+    ds = CmuDataset(dataset_config)
+
+    if task == 'class2':
+        num_classes=2
+        task_short='c2'
+    elif task == 'class7':
+        num_classes=7
+        task_short='c7'
+    
+    train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds, num_labels=num_classes)
+
+    # if 'cmbert' in checkpoint:
+    TokenizerClass = CMBertTokenizer # they are the same
+    # elif 'mmbert' in checkpoint:
+    #     TokenizerClass = MMBertTokenizer
+    batch_size=8
+
+    tokenizer = TokenizerClass(checkpoint='distilbert/distilbert-base-uncased')
+
+    data_collator = MMSeqClassDataCollator(tokenizer=tokenizer, num_labels=num_classes, device=device)
+    test_dataloader = DataLoader(test_ds, batch_size=batch_size, collate_fn=data_collator)
+
+    metrics = ['accuracy', 'f1', 'precision', 'recall']
+
+    all_results = []
+
+    for checkpoint in checkpoints:
+        checkpoint_path = 'models/' + task + '/' + checkpoint
+        if 'cmbert' in checkpoint:
+            model_name = 'cmbert'
+            ModelClass = CMBertForSequenceClassification
+            TokenizerClass = CMBertTokenizer
+        elif 'mmbert' in checkpoint:
+            model_name = 'mmbert'
+            ModelClass = MMBertForSequenceClassification
+            TokenizerClass = MMBertTokenizer
+
+        model = ModelClass.from_pretrained(checkpoint_path)
+        model.to(device)
+        criterion = get_criterion('crossentropyloss')
+        criterion.to(device)
+
+        # print(model.config)
+        
+        calculated_metrics = evaluation(
+            model=model, 
+            dataloader=test_dataloader,
+            criterion=criterion,
+            metrics_names=metrics,
+            task=task_short,
+        )
+
+        calculated_metrics['checkpoint'] = checkpoint
+        calculated_metrics['model_name'] = model_name
+        calculated_metrics['datetime_run'] = checkpoint[-16:]
+        print(calculated_metrics)
+        all_results.append(calculated_metrics)
+        
+        path = 'experiments/' + task + '/test_eval.jsonl'
+        save_result(calculated_metrics, path)
+
+
+# def save_metrics(path, results):
+    
 
 
 def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None, dsdeploy=False):

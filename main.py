@@ -399,6 +399,46 @@ def main_contrain_run(args):
             # break
 
 
+def main_evaluate(args):
+    task = args.task
+    ds = args.ds.upper()
+    text_feat = args.text_feat
+    audio_feat = args.audio_feat
+    visual_feat = args.visual_feat
+    models_path = 'models/' + args.task + '/'
+    experiments_path = 'experiments/' + args.task
+
+    models_checkpoints = sorted([dir for dir in os.listdir(models_path) if 'bert' in dir], reverse=True)
+
+    print(f'models_checkpoints: {len(models_checkpoints)}')
+
+    # run_cfg = get_pretrained_model_run_config(checkpoint, experiments_path)
+    if text_feat is not None:
+        text_features = SDK_DS[ds][text_feat]['featuresname']
+    if audio_feat is not None:
+        audio_features = SDK_DS[ds][audio_feat]['featuresname']
+        audio_feat_size = SDK_DS[ds][audio_feat]['feat_size']
+    if visual_feat is not None:
+        visual_features = SDK_DS[ds][visual_feat]['featuresname']
+        visual_feat_size = SDK_DS[ds][visual_feat]['feat_size']
+    labels_features = SDK_DS[ds]['LABELS']['featuresname']
+                    
+    dataset_config = CmuDatasetConfig(
+        sdkpath = SDK_DS['SDK_PATH'],
+        dataset = ds,
+        text_features = text_features, # run_cfg['dataset_config']['feature_names']['text_feat'],
+        audio_features = audio_features,
+        visual_features = visual_features,
+        labels = labels_features, # run_cfg['dataset_config']['labels'],
+        preprocess = False,
+        load_preprocessed = True, # by default load preprocessed data
+    )
+
+    train.main_evaluate(checkpoints=models_checkpoints, dataset_config=dataset_config, task=task)
+
+    
+    
+
 def get_pretrained_model_run_config(checkpoint, exp_path):
     configs = None
     checkpoint_id = checkpoint[-16:]
@@ -481,6 +521,10 @@ if __name__ == '__main__':
                         help='run trainings on pretrained models (continue training)'
                         )
     
+    parser.add_argument('--eval', dest='eval',
+                        action='store_true',
+                        help='run evaluation on training dataset for all models in directory'
+                        )
 
     args = parser.parse_args()
 
@@ -511,8 +555,10 @@ if __name__ == '__main__':
         get_singlerun_configuration,
         get_multirun_configuration
     )
-    
-    if args.contrain:
+
+    if args.eval:
+        main_evaluate(args)
+    elif args.contrain:
         main_contrain_run(args)
     elif args.multirun:
         main_multirun(args)

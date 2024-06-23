@@ -8,12 +8,12 @@ contrain_configuration = {
 # model hyperparameters
 'model_names': [None], # values depends on pretrained model
 'encoder_checkpoints': ['distilbert/distilbert-base-uncased'] ,
-'hidden_dropout_prob': [0.1],
-'modality_att_dropout_prob': [0.3],
-'freeze_params_layers': [3],
+'hidden_dropout_prob': [0.3],
+'modality_att_dropout_prob': [0.2],
+'freeze_params_layers': [0],
 'hidden_size': [768] , # values depends on pretrained model
 'projection_size': [None] , # values depends on pretrained model
-'num_labels': [2] ,
+'num_labels': [7] ,
 
 # training arguments
 'batch_size': [8] ,
