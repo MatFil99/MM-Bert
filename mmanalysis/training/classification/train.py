@@ -36,7 +36,6 @@ from mmanalysis.utils import (
 
 
 def prepare_data_splits(ds, num_labels):
-    
     ds.labels_2_class(num_classes=num_labels)
  
     folds = {
@@ -77,7 +76,7 @@ def evaluation(model, dataloader, criterion, metrics_names, task):
         calculated_metrics = {}
         for name, metric in metrics.items():
             # if neighter binary classification nor regression
-            if task not in ['c2'] and name in ['f1', 'precision', 'recall']:
+            if task not in ['class2'] and name in ['f1', 'precision', 'recall']:
                 metric_evaluation = metric.compute(average='weighted')
             else:
                 metric_evaluation = metric.compute()
@@ -160,17 +159,12 @@ def main_evaluate(checkpoints, dataset_config, task):
 
     if task == 'class2':
         num_classes=2
-        task_short='c2'
     elif task == 'class7':
         num_classes=7
-        task_short='c7'
     
-    train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds, num_labels=num_classes)
+    _, _, test_ds = prepare_data_splits(ds=ds, num_labels=num_classes)
 
-    # if 'cmbert' in checkpoint:
-    TokenizerClass = CMBertTokenizer # they are the same
-    # elif 'mmbert' in checkpoint:
-    #     TokenizerClass = MMBertTokenizer
+    TokenizerClass = CMBertTokenizer # they are the same (CMBertTokenizer and MMBertTokenizer)
     batch_size=8
 
     tokenizer = TokenizerClass(checkpoint='distilbert/distilbert-base-uncased')
@@ -205,7 +199,7 @@ def main_evaluate(checkpoints, dataset_config, task):
             dataloader=test_dataloader,
             criterion=criterion,
             metrics_names=metrics,
-            task=task_short,
+            task=task,
         )
 
         calculated_metrics['checkpoint'] = checkpoint
@@ -217,24 +211,16 @@ def main_evaluate(checkpoints, dataset_config, task):
         path = 'experiments/' + task + '/test_eval.jsonl'
         save_result(calculated_metrics, path)
 
-
-# def save_metrics(path, results):
-    
+   
 
 
-def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None, dsdeploy=False):
+def main(model_name, train_ds, valid_ds, test_ds, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
     torch.manual_seed(seed)
     if device == torch.device('cuda'):
         torch.cuda.manual_seed_all(seed)
-    
-
-    # dataset
-    ds = CmuDataset(dataset_config)
-    if dsdeploy:
-        ds.deploy()
     
     # model
     if model_name == 'cmbert':
@@ -261,12 +247,12 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     
     # task used for metric definition 
     if model_config.num_classes == 2:
-        task = 'c2'
+        task = 'class2'
     elif model_config.num_classes == 7:
-        task = 'c7'
+        task = 'class7'
 
     # split data into train, valid, test datasets
-    train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds, num_labels=model_config.num_classes)
+    # train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds, num_labels=model_config.num_classes)
 
     batch_size = training_arguments.batch_size
     criterion = get_criterion(training_arguments.criterion)
@@ -303,7 +289,7 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     valid_dataloader = DataLoader(valid_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(test_ds, batch_size=batch_size, collate_fn=data_collator)
     
-    metrics = ['accuracy', 'f1']
+    metrics = ['accuracy', 'f1', 'precision', 'recall']
 
     num_epochs = training_arguments.num_epochs
     num_training_steps = num_epochs*len(train_dataloader)

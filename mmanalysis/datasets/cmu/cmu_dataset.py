@@ -37,6 +37,8 @@ class CmuDataset(Dataset):
     def __init__(self, config, ds=None):
         super(CmuDataset, self).__init__()
 
+        self.config = config
+
         self.dsname = config.dataset
         self.ds_path = config.ds_path
         self.feature_names = config.feature_names

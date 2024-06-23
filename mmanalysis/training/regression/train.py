@@ -35,6 +35,7 @@ from mmanalysis.utils import (
 )
 
 
+# def prepare_data_splits(ds, num_labels):
 def prepare_data_splits(ds, num_labels):
     ds.labels_2_class(num_classes=num_labels)
 
@@ -152,18 +153,13 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
     return best_model, train_loss, valid_eval
 
 
-def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None, dsdeploy=False):
+def main(model_name, train_ds, valid_ds, test_ds, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
     torch.manual_seed(seed)
     if device == torch.device('cuda'):
         torch.cuda.manual_seed_all(seed)
-    
-    # dataset
-    ds = CmuDataset(dataset_config)
-    if dsdeploy:
-        ds.deploy()
     
     # model
     if model_name == 'cmbert':
@@ -181,24 +177,13 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
                 model.freeze_params()
         model.config = model_config
     else:
-        model = ModelClass(config=model_config)
-    # model = MMBertForSequenceClassification(config=model_config)
-    
-    # print(f'config: {model_config}')
-    # print(f'freeze  params: {model.config.freeze_params}')
-    # for name, param in model.named_parameters():
-    #     print(f'name: {name} :: {param.requires_grad}')    
-    # exit(1)
+        model = ModelClass(config=model_config) 
 
     # task used for metric definition
     task = 'r'
 
-    # split data into train, valid, test datasets
-    train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds, num_labels=model_config.num_classes)
-
     batch_size = training_arguments.batch_size
     criterion = get_criterion(training_arguments.criterion)
-
 
     # Prepare optimizer parameters
     if training_arguments.layer_specific_optimization:
@@ -232,11 +217,6 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
     valid_dataloader = DataLoader(valid_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
     test_dataloader = DataLoader(test_ds, batch_size=1, collate_fn=data_collator) # batch_size for testing = 1
     
-    # for batch in train_dataloader:
-    #     print(f'labels: { batch["labels"]}')
-    #     t_shape = batch['input_ids'].shape
-    #     exit(1)
-
     # regression
     metrics = ['mse', 'mae', 'pearsonr']
 
@@ -249,10 +229,6 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         num_training_steps=num_training_steps,
     )
 
-    # pretrained_checkpoint = r'models\reg\cmumosei_blad\mmbert_distilbert-base-uncased_01Jun2024_175030'
-    # best_model = ModelClass.from_pretrained(pretrained_checkpoint, num_classes=1)
-    # best_model.to(device)
-    
     best_model, train_loss, valid_eval = train(
         model=model,
         train_dataloader=train_dataloader,

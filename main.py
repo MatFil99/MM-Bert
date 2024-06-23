@@ -13,8 +13,11 @@ from mmanalysis.models.mmbert import MMBertConfig
 
 from mmanalysis.datasets.cmu import (
     SDK_DS,
-    CmuDatasetConfig
+    CmuDatasetConfig,
+    CmuDataset,
+    standard_folds
 )
+
 
 def get_model_config_class(model_name):
     if model_name == 'cmbert':
@@ -43,7 +46,6 @@ def main_single_run(args):
     (
     model_name,
     encoder_checkpoint,
-    # load_pretrained,
     hidden_dropout_prob,
     modality_att_dropout_prob,
     freeze_params_layers,
@@ -64,7 +66,7 @@ def main_single_run(args):
     best_model_metric,
     save_best_model,
     save_model_dest
-    ) = get_singlerun_configuration(**singlerun_configuration)
+    ) = get_singlerun_configuration(**base_config)
 
     dataset_config = CmuDatasetConfig(
         sdkpath = SDK_DS['SDK_PATH'],
@@ -120,65 +122,211 @@ def main_single_run(args):
         dsdeploy=args.dsdeploy,
         )
 
+def prepare_dataset(ds):
+    audio_features = None
+    audio_feat_size = None
+    visual_features = None
+    visual_feat_size = None
+
+    audio_feat = None if args.audio_feat is None else args.audio_feat
+    visual_feat = None if args.visual_feat is None else args.visual_feat
+
+    labels = SDK_DS[ds]['LABELS']['featuresname']
+    if audio_feat is not None:
+        audio_features = SDK_DS[ds][audio_feat]['featuresname']
+        audio_feat_size = SDK_DS[ds][audio_feat]['feat_size']
+    if visual_feat is not None:
+        visual_features = SDK_DS[ds][visual_feat]['featuresname']
+        visual_feat_size = SDK_DS[ds][visual_feat]['feat_size']
+
+    dataset_config = CmuDatasetConfig(
+        sdkpath = SDK_DS['SDK_PATH'],
+        dataset = ds,
+        text_features = SDK_DS[ds][base_config['text_features']]['featuresname'],
+        audio_features = audio_features,
+        visual_features = visual_features,
+        labels = labels,
+        preprocess = False,
+        load_preprocessed = True, # by default load preprocessed data
+    )
+    dataset = CmuDataset(dataset_config)
+    if args.dsdeploy:
+        dataset.deploy()
+
+    return dataset, audio_feat_size, visual_feat_size
+
 
 def main_multirun(args):
     """
     """
     datetime_start = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
-    
-    param_configs = {
-        # 'hidden_dropout_prob': [0.1, 0.2],
-        # 'modality_att_dropout_prob': [0.1, 0.2, 0.3],
-        # 'projection_size': [30],
-        # 'freeze_params_layers': [5, 6],
-        
-        'hidden_dropout_prob': [0.1, 0.2, 0.3, 0.4, 0.5],
-        'modality_att_dropout_prob': [0.1, 0.2, 0.3, 0.4, 0.5],
-        'projection_size': [30, 60, 120, 240, 480, 768],
-        'freeze_params_layers': [0, 3, 4, 5, 6],
-    }
 
-    if args.task == 'class2':
-        num_class = [2]
-    elif args.task == 'class7':
-        num_class = [7]
+    if args.ds is not None:
+        base_config['dataset'] = args.ds
+        ds = args.ds.upper()
+    else: 
+        ds = base_config['dataset'].upper()
 
-    for name, config in param_configs.items():
-        multirun_param_config = copy.deepcopy(multirun_configuration)
-        multirun_param_config[name] = config
-        multirun_param_config['save_model_dest'] = ['models/' + args.task]
-        if args.task in ['class2', 'class7']:
-            multirun_param_config['num_labels'] = num_class
-        if args.ds:
-            multirun_param_config['datasets'] = [args.ds]
-        datasets, runs_config = get_multirun_configuration(**multirun_param_config)
+    if 'class' in args.task:
+        base_config['num_labels'] = int(args.task[5:])
+    elif args.task == 'reg':
+        base_config['num_labels'] = 1
+    else:
+        base_config['num_labels'] = None
 
-        print("Param {} - Number of runs configurations: {}, ds: {}, model {}".format(name, len(runs_config), multirun_param_config['datasets'], multirun_param_config['model_names']))
+    dataset, audio_feat_size, visual_feat_size = prepare_dataset(ds)
+    train_ds, valid_ds, test_ds = train.prepare_data_splits(dataset, base_config['num_labels'])
 
-        for dataset in datasets:
-            ds = dataset.upper()
+    base_config_arr = {key: [value] for key, value in base_config.items() if type(value) != list}
 
+    for name, config in multirun_configuration.items():
+        param_config = copy.deepcopy(base_config_arr) # get base configuration 
+        param_config[name] = config # assign values of tested parameter
+        param_config['save_model_dest'] = ['models/' + args.task] 
+
+        print(f'before config: {param_config}')
+
+        # if args.ds:
+        #     param_config['datasets'] = [args.ds]
+        runs_config, _ = get_multirun_configuration(**param_config)
+
+        print("Param {} - Number of runs configurations: {}, ds: {}, model {}".format(name, len(runs_config), param_config['dataset'], param_config['model_name']))
+
+        i = 1
+        for run_config in runs_config:
+            print(f'config_run: {i} / {len(runs_config)}')
+            print(run_config)
+            i+=1
+
+            (
+                text_feat,
+                model_name,
+                encoder_checkpoint,
+                hidden_dropout_prob,
+                modality_att_dropout_prob,
+                freeze_params_layers,
+                hidden_size,
+                projection_size,
+                num_labels,
+                batch_size,
+                num_epochs,
+                patience,
+                chunk_size,
+                wwm_probability,
+                criterion,
+                optimizer,
+                layer_specific_optimization,
+                lr,
+                scheduler_type,
+                warmup_steps_ratio,
+                best_model_metric,
+                save_best_model,
+                save_model_dest
+            ) = run_config
+
+
+
+            training_arguments = TrainingArgs(
+                batch_size = batch_size,
+                num_epochs = num_epochs,
+                patience = patience,
+                chunk_size = chunk_size,
+                wwm_probability = wwm_probability,
+                criterion = criterion,
+                optimizer = optimizer,
+                layer_specific_optimization = layer_specific_optimization,
+                lr = lr,
+                scheduler_type = scheduler_type,
+                warmup_steps_ratio = warmup_steps_ratio,
+                save_best_model = save_best_model,
+                save_model_dest = save_model_dest
+            )
+
+            ModelConfigClass = get_model_config_class(model_name=model_name)
+            
+            model_config = ModelConfigClass(
+                encoder_checkpoint = encoder_checkpoint,
+                modality_att_dropout_prob = modality_att_dropout_prob,
+                hidden_dropout_prob = hidden_dropout_prob,
+                hidden_size = hidden_size,
+                freeze_params_layers=freeze_params_layers,
+                audio_feat_size = audio_feat_size,
+                visual_feat_size = visual_feat_size,
+                projection_size = projection_size,
+                num_labels = num_labels,
+                best_model_metric = best_model_metric,
+            )
+            
+            results_path = 'experiments/' + args.task + '/results_' + model_name + '_' + datetime_start + '.jsonl'
+
+            train.main(
+                model_name=model_name,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+                dataset_config=dataset.config,
+                model_config=model_config,
+                training_arguments=training_arguments,
+                results_path=results_path,
+                )
+
+def main_contrain_run(args):
+    models_path = 'models/mlm/'
+    experiments_path = 'experiments/mlm'
+
+    datetime_start = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
+
+    if args.ds is not None:
+        base_config['dataset'] = args.ds
+        ds = args.ds.upper()
+    else: 
+        ds = base_config['dataset'].upper()
+
+    if 'class' in args.task:
+        base_config['num_labels'] = int(args.task[5:])
+    elif args.task == 'reg':
+        base_config['num_labels'] = 1
+    else:
+        base_config['num_labels'] = None
+
+    dataset, audio_feat_size, visual_feat_size = prepare_dataset(ds)
+    train_ds, valid_ds, test_ds = train.prepare_data_splits(dataset, base_config['num_labels'])
+
+    base_config_arr = {key: [value] for key, value in base_config.items() if type(value) != list}
+
+    models_checkpoints = sorted([dir for dir in os.listdir(models_path) if 'bert' in dir], reverse=True)
+
+    # print(f'run_config: {len(runs_config)}')
+    print(f'models_checkpoints: {len(models_checkpoints)}')
+
+    for checkpoint in models_checkpoints:
+        print(checkpoint)
+        checkpoint =  models_path + checkpoint
+        run_cfg = get_pretrained_model_run_config(checkpoint, experiments_path)
+
+        for name, config in multirun_configuration.items():
+            param_config = copy.deepcopy(base_config_arr) # get base configuration 
+            param_config[name] = config # assign values of tested parameter
+            param_config['save_model_dest'] = ['models/' + args.task] 
+
+            runs_config, _ = get_multirun_configuration(**param_config)
+            print("Param {} - Number of runs configurations: {}, ds: {}, model {}".format(name, len(runs_config), param_config['dataset'], param_config['model_name']))
+            
             i = 1
             for run_config in runs_config:
                 print(f'config_run: {i} / {len(runs_config)}')
+                print(run_config)
                 i+=1
-                audio_features = None
-                audio_feat_size = None
-                visual_features = None
-                visual_feat_size = None
 
                 (
-                    text_feat,
-                    audio_feat,
-                    visual_feat,
-                    model_name,
+                    _,
+                    _,
                     encoder_checkpoint,
-                    # load_pretrained,
                     hidden_dropout_prob,
                     modality_att_dropout_prob,
                     freeze_params_layers,
                     hidden_size,
-                    projection_size,
+                    _,
                     num_labels,
                     batch_size,
                     num_epochs,
@@ -196,28 +344,9 @@ def main_multirun(args):
                     save_model_dest
                 ) = run_config
 
-
-                visual_features = None
-                visual_feat_size = None
-                labels = SDK_DS[ds]['LABELS']['featuresname']
-                if audio_feat is not None:
-                    audio_features = SDK_DS[ds][audio_feat]['featuresname']
-                    audio_feat_size = SDK_DS[ds][audio_feat]['feat_size']
-                if visual_feat is not None:
-                    visual_features = SDK_DS[ds][visual_feat]['featuresname']
-                    visual_feat_size = SDK_DS[ds][visual_feat]['feat_size']
-
-                dataset_config = CmuDatasetConfig(
-                    sdkpath = SDK_DS['SDK_PATH'],
-                    dataset = ds,
-                    text_features = SDK_DS[ds][text_feat]['featuresname'],
-                    audio_features = audio_features,
-                    visual_features = visual_features,
-                    labels = labels,
-                    preprocess = False,
-                    load_preprocessed = True, # by default load preprocessed data
-                )
-
+                model_name = run_cfg['model_name']
+                projection_size = run_cfg['model_config']['projection_size']
+                
                 training_arguments = TrainingArgs(
                     batch_size = batch_size,
                     num_epochs = num_epochs,
@@ -251,153 +380,16 @@ def main_multirun(args):
                 
                 results_path = 'experiments/' + args.task + '/results_' + model_name + '_' + datetime_start + '.jsonl'
 
-                # print(dataset_config.__dict__)
-                # print(f"model_config.freeze_params_layers {model_config.freeze_params_layers}")
-
                 train.main(
                     model_name=model_name,
-                    dataset_config=dataset_config,
+                    train_ds=train_ds,
+                    valid_ds=valid_ds,
+                    test_ds=test_ds,
+                    dataset_config=dataset.config,
                     model_config=model_config,
                     training_arguments=training_arguments,
                     results_path=results_path,
-                    dsdeploy=args.dsdeploy,
                     )
-
-def main_contrain_run(args):
-    models_path = 'models/mlm/'
-    experiments_path = 'experiments/mlm'
-    datetime_start = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
-    
-    datasets, runs_config = get_multirun_configuration(**contrain_configuration)
-
-    models_checkpoints = sorted([dir for dir in os.listdir(models_path) if 'bert' in dir], reverse=True)
-
-    print(f'run_config: {len(runs_config)}')
-    print(f'models_checkpoints: {len(models_checkpoints)}')
-
-    for dataset in datasets:
-        ds = dataset.upper()
-        
-        for checkpoint in models_checkpoints:
-            print(checkpoint)
-            checkpoint =  models_path + checkpoint
-            run_cfg = get_pretrained_model_run_config(checkpoint, experiments_path)
-            
-            i = 1
-            for run_config in runs_config:
-                print(f'config_run: {i} / {len(runs_config)}')
-                
-                i+=1
-                audio_feat = None
-                visual_feat = None
-
-                (
-                    text_feat,
-                    audio_feat,
-                    visual_feat,
-                    _,
-                    encoder_checkpoint,
-                    # load_pretrained,
-                    hidden_dropout_prob,
-                    modality_att_dropout_prob,
-                    freeze_params_layers,
-                    hidden_size,
-                    _,
-                    num_labels,
-                    batch_size,
-                    num_epochs,
-                    patience,
-                    chunk_size,
-                    wwm_probability,
-                    criterion,
-                    optimizer,
-                    layer_specific_optimization,
-                    lr,
-                    scheduler_type,
-                    warmup_steps_ratio,
-                    best_model_metric,
-                    save_best_model,
-                    save_model_dest
-                ) = run_config
-                
-                model_name = run_cfg['model_name']
-
-                if text_feat is not None:
-                    text_features = SDK_DS[ds][text_feat]['featuresname']
-                if audio_feat is not None:
-                    audio_features = SDK_DS[ds][audio_feat]['featuresname']
-                    audio_feat_size = SDK_DS[ds][audio_feat]['feat_size']
-                if visual_feat is not None:
-                    visual_features = SDK_DS[ds][visual_feat]['featuresname']
-                    visual_feat_size = SDK_DS[ds][visual_feat]['feat_size']
-                labels_features = SDK_DS[ds]['LABELS']['featuresname']
-                # if 'audio_feat' in run_cfg['dataset_config']['feature_names']:
-                #     audio_feat = run_cfg['dataset_config']['feature_names']['audio_feat']
-                # if 'visual_feat' in run_cfg['dataset_config']['feature_names']:
-                #     visual_feat = run_cfg['dataset_config']['feature_names']['visual_feat']
-                projection_size = run_cfg['model_config']['projection_size']
-                # print(run_cfg['dataset_config']['feature_names'])
-
-                dataset_config = CmuDatasetConfig(
-                    sdkpath = SDK_DS['SDK_PATH'],
-                    dataset = ds,
-                    text_features = text_features, # run_cfg['dataset_config']['feature_names']['text_feat'],
-                    audio_features = audio_features,
-                    visual_features = visual_features,
-                    labels = labels_features, # run_cfg['dataset_config']['labels'],
-                    preprocess = run_cfg['dataset_config']['preprocess'],
-                    load_preprocessed = True, # by default load preprocessed data
-                )
-                
-                training_arguments = TrainingArgs(
-                    batch_size = batch_size,
-                    num_epochs = num_epochs,
-                    patience = patience,
-                    chunk_size = chunk_size,
-                    wwm_probability = wwm_probability,
-                    criterion = criterion,
-                    optimizer = optimizer,
-                    layer_specific_optimization = layer_specific_optimization,
-                    lr = lr,
-                    scheduler_type = scheduler_type,
-                    warmup_steps_ratio = warmup_steps_ratio,
-                    save_best_model = save_best_model,
-                    save_model_dest = save_model_dest
-                )
-
-                ModelConfigClass = get_model_config_class(model_name=model_name)
-                
-                model_config = ModelConfigClass(
-                    encoder_checkpoint = encoder_checkpoint,
-                    modality_att_dropout_prob = modality_att_dropout_prob,
-                    hidden_dropout_prob = hidden_dropout_prob,
-                    hidden_size = hidden_size,
-                    freeze_params_layers = freeze_params_layers,
-                    audio_feat_size = run_cfg['model_config']['audio_feat_size'],
-                    visual_feat_size = run_cfg['model_config']['visual_feat_size'],
-                    projection_size = projection_size,
-                    num_labels = num_labels,
-                    best_model_metric = best_model_metric,
-                )
-
-                results_path = 'experiments/' + args.task + str(num_labels) + '/results_' + model_name + '_pretrained_' + datetime_start + '.jsonl'
-
-                # print(f'dataset_config {dataset_config.__dict__}')
-                # print(f'training_arguments {training_arguments.__dict__}')
-                # print(f'model_config {model_config}')
-                # print(f'results_path {results_path}')
-                train.main(
-                    model_name=model_name,
-                    dataset_config=dataset_config,
-                    model_config=model_config,
-                    training_arguments=training_arguments,
-                    results_path=results_path,
-                    pretrained_checkpoint=checkpoint,
-                    dsdeploy=args.dsdeploy,
-                )
-            
-            # break
-
 
 def main_evaluate(args):
     task = args.task
@@ -406,21 +398,17 @@ def main_evaluate(args):
     audio_feat = args.audio_feat
     visual_feat = args.visual_feat
     models_path = 'models/' + args.task + '/'
-    experiments_path = 'experiments/' + args.task
 
     models_checkpoints = sorted([dir for dir in os.listdir(models_path) if 'bert' in dir], reverse=True)
 
     print(f'models_checkpoints: {len(models_checkpoints)}')
 
-    # run_cfg = get_pretrained_model_run_config(checkpoint, experiments_path)
     if text_feat is not None:
         text_features = SDK_DS[ds][text_feat]['featuresname']
     if audio_feat is not None:
         audio_features = SDK_DS[ds][audio_feat]['featuresname']
-        audio_feat_size = SDK_DS[ds][audio_feat]['feat_size']
     if visual_feat is not None:
         visual_features = SDK_DS[ds][visual_feat]['featuresname']
-        visual_feat_size = SDK_DS[ds][visual_feat]['feat_size']
     labels_features = SDK_DS[ds]['LABELS']['featuresname']
                     
     dataset_config = CmuDatasetConfig(
@@ -532,7 +520,7 @@ if __name__ == '__main__':
         from mmanalysis.training.classification import (
             contrain_configuration,
             multirun_configuration,
-            singlerun_configuration,
+            base_config,
             train,
         )
     elif args.task == 'mlm':
@@ -540,14 +528,14 @@ if __name__ == '__main__':
         from mmanalysis.training.mlm import (
             # continuedtrain_config,
             multirun_configuration,
-            singlerun_configuration,
+            base_config,
             train,
         )
     elif args.task == 'reg':
         from mmanalysis.training.regression import (
             contrain_configuration,
             multirun_configuration,
-            singlerun_configuration,
+            base_config,
             train,
         )
     

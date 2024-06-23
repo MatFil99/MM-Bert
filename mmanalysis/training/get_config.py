@@ -2,6 +2,7 @@ import itertools
 
 def get_singlerun_configuration(
     # default run configuration
+    # dataset,
     model_name='cmbert',
     encoder_checkpoint='distilbert/distilbert-base-uncased',
     # load_pretrained=False,
@@ -55,41 +56,39 @@ def get_singlerun_configuration(
 
 
 def get_multirun_configuration(
-        datasets=['cmumosi'],
-        text_features=['RAWTEXT'],
-        audio_features=['COVAREP', None],
-        visual_features=['FACET42', None],
-        model_names=['cmbert', 'mmbert'],
-        encoder_checkpoints=['distilbert/distilbert-base-uncased'],
-        # load_pretrained=False,
-        hidden_dropout_prob=[0.2],
-        modality_att_dropout_prob=[0.3],
-        # freeze_params=[True],
-        freeze_params_layers=[11],
-        hidden_size=[768],
-        projection_size=[30, 768],
+        dataset,
+        text_features,
+        # audio_features,
+        # visual_features,
+        model_name,
+        encoder_checkpoint,
+        hidden_dropout_prob,
+        modality_att_dropout_prob,
+        freeze_params_layers,
+        hidden_size,
+        projection_size,
+        batch_size,
+        num_epochs,
+        patience,
+        criterion,
+        optimizer,
+        layer_specific_optimization,
+        lr,
+        scheduler_type,
+        warmup_steps_ratio,
+        best_model_metric,
+        save_best_model,
+        save_model_dest,
+        wwm_probability=[0.15],
+        chunk_size=[128],
         num_labels=[2],
-        batch_size=[8],
-        num_epochs=[3],
-        patience=[3],
-        chunk_size=[None],
-        wwm_probability=[0.2],
-        criterion=['crossentropyloss'],
-        optimizer=['adamw'],
-        layer_specific_optimization=[True],
-        lr=[2e-5],
-        scheduler_type=['linear'],
-        warmup_steps_ratio=[0.1],
-        best_model_metric=['accuracy'],
-        save_best_model=[False],
-        save_model_dest=['models/']
 ):
     runs_configuration = set(itertools.product(*[
         text_features,
-        audio_features,
-        visual_features,
-        model_names,
-        encoder_checkpoints,
+        # audio_features,
+        # visual_features,
+        model_name,
+        encoder_checkpoint,
         # load_pretrained,
         hidden_dropout_prob,
         modality_att_dropout_prob,
@@ -114,68 +113,5 @@ def get_multirun_configuration(
         save_model_dest
     ]))
 
-    return datasets, runs_configuration
-
-    # # all that uses only text modality
-    # redundant = set(itertools.product(*[
-    #     text_features,
-    #     [None],
-    #     [None],
-    #     model_names,
-    #     encoder_checkpoints,
-    #     # load_pretrained,
-    #     hidden_dropout_prob,
-    #     modality_att_dropout_prob,
-    #     freeze_params,
-    #     hidden_size,
-    #     projection_size,
-    #     num_labels,
-    #     batch_size,
-    #     num_epochs,
-    #     patience,
-    #     chunk_size,
-    #     wwm_probability,
-    #     criterion,
-    #     optimizer,
-    #     layer_specific_optimization,
-    #     lr,
-    #     scheduler_type,
-    #     warmup_steps_ratio,
-    #     best_model_metric,
-    #     save_best_model,
-    #     save_model_dest
-    # ]))
-
-    # # all that uses only text modality
-    # removed = set(itertools.product(*[
-    #     text_features,
-    #     [None],
-    #     [None],
-    #     model_names,
-    #     encoder_checkpoints,
-    #     # load_pretrained,
-    #     hidden_dropout_prob,
-    #     [0.3], # not used when just text modality
-    #     freeze_params,
-    #     hidden_size,
-    #     [30], # not used when just text modality
-    #     num_labels,
-    #     batch_size,
-    #     num_epochs,
-    #     patience,
-    #     chunk_size,
-    #     wwm_probability,
-    #     criterion,
-    #     optimizer,
-    #     layer_specific_optimization,
-    #     lr,
-    #     scheduler_type,
-    #     warmup_steps_ratio,
-    #     best_model_metric,
-    #     save_best_model,
-    #     save_model_dest
-    # ]))
-    
-    # runs_configuration = runs_configuration.difference(redundant)
-    # runs_configuration = runs_configuration.union(removed)
+    return runs_configuration, dataset
 
