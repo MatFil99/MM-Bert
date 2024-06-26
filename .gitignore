@@ -162,7 +162,7 @@ cython_debug/
 # CMBert project
 legacy_parameters/
 parameters*.txt
-experiments/
+experiments/*
 /models
 *.ipynb
 experiments.zip

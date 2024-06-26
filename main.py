@@ -25,59 +25,57 @@ def get_model_config_class(model_name):
     elif model_name == 'mmbert':
         return MMBertConfig
 
-def main_single_run(args):
+def main_single_run():
     datetime_start = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
 
-    ds = args.ds.upper()
-    text_features = SDK_DS[ds][args.text_feat]['featuresname']
-    audio_features = None
-    audio_feat_size = None
-    visual_features = None
-    visual_feat_size = None
-    labels = SDK_DS[ds]['LABELS']['featuresname']
+    print(args)
 
-    if args.audio_feat is not None:
-        audio_features = SDK_DS[ds][args.audio_feat]['featuresname']
-        audio_feat_size = SDK_DS[ds][args.audio_feat]['feat_size']
-    if args.visual_feat is not None:
-        visual_features = SDK_DS[ds][args.visual_feat]['featuresname']
-        visual_feat_size = SDK_DS[ds][args.visual_feat]['feat_size']
+    if args.ds is not None:
+        base_config['dataset'] = args.ds
+        ds = args.ds.upper()
+    else: 
+        ds = base_config['dataset'].upper()
+
+    if 'class' in args.task:
+        base_config['num_labels'] = int(args.task[5:])
+    elif args.task == 'reg':
+        base_config['num_labels'] = 1
+    else:
+        base_config['num_labels'] = None
+    
+    dataset, audio_feat_size, visual_feat_size = prepare_dataset(ds)
+    train_ds, valid_ds, test_ds = train.prepare_data_splits(dataset, base_config['num_labels'])
+
+    base_config_arr = {key: value for key, value in base_config.items() if type(value) != list}
+    base_config_arr['save_model_dest'] = 'models/' + args.task
+    run_config, _ = get_singlerun_configuration(**base_config_arr)
 
     (
-    model_name,
-    encoder_checkpoint,
-    hidden_dropout_prob,
-    modality_att_dropout_prob,
-    freeze_params_layers,
-    hidden_size,
-    projection_size,
-    num_labels,
-    batch_size,
-    num_epochs,
-    patience,
-    chunk_size,
-    wwm_probability,
-    criterion,
-    optimizer,
-    layer_specific_optimization,
-    lr,
-    scheduler_type,
-    warmup_steps_ratio,
-    best_model_metric,
-    save_best_model,
-    save_model_dest
-    ) = get_singlerun_configuration(**base_config)
+        text_feat,
+        model_name,
+        encoder_checkpoint,
+        hidden_dropout_prob,
+        modality_att_dropout_prob,
+        freeze_params_layers,
+        hidden_size,
+        projection_size,
+        num_labels,
+        batch_size,
+        num_epochs,
+        patience,
+        chunk_size,
+        wwm_probability,
+        criterion,
+        optimizer,
+        layer_specific_optimization,
+        lr,
+        scheduler_type,
+        warmup_steps_ratio,
+        best_model_metric,
+        save_best_model,
+        save_model_dest
+    ) = run_config
 
-    dataset_config = CmuDatasetConfig(
-        sdkpath = SDK_DS['SDK_PATH'],
-        dataset = ds,
-        text_features = text_features,
-        audio_features = audio_features,
-        visual_features = visual_features,
-        labels = labels,
-        preprocess = args.preprocess,
-        load_preprocessed = args.load_preprocessed,
-    )
 
     training_arguments = TrainingArgs(
         batch_size = batch_size,
@@ -95,8 +93,9 @@ def main_single_run(args):
         save_model_dest = save_model_dest
     )
 
-    # CMBertConfig / MMBertConfig / ...
     ModelConfigClass = get_model_config_class(model_name=model_name)
+
+    # print(ModelConfigClass)
 
     model_config = ModelConfigClass(
         encoder_checkpoint=encoder_checkpoint,
@@ -111,15 +110,17 @@ def main_single_run(args):
         best_model_metric=best_model_metric,
     )
     
-    # results_path = 'experiments/results_' + model_name + '_' + datetime_start + '.jsonl'
+    
     results_path = 'experiments/' + args.task + '/results_' + model_name + '_' + datetime_start + '.jsonl'
     train.main(
         model_name=model_name,
-        dataset_config=dataset_config,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        dataset_config=dataset.config,
         model_config=model_config,
         training_arguments=training_arguments,
         results_path=results_path,
-        dsdeploy=args.dsdeploy,
         )
 
 def prepare_dataset(ds):
@@ -146,8 +147,8 @@ def prepare_dataset(ds):
         audio_features = audio_features,
         visual_features = visual_features,
         labels = labels,
-        preprocess = False,
-        load_preprocessed = True, # by default load preprocessed data
+        preprocess = args.preprocess,
+        load_preprocessed = args.load_preprocessed, # by default load preprocessed data
     )
     dataset = CmuDataset(dataset_config)
     if args.dsdeploy:
@@ -156,10 +157,12 @@ def prepare_dataset(ds):
     return dataset, audio_feat_size, visual_feat_size
 
 
-def main_multirun(args):
+def main_multirun():
     """
     """
     datetime_start = datetime.strftime(datetime.now(), format='%d%b%Y_%H%M%S')
+
+    print(args)
 
     if args.ds is not None:
         base_config['dataset'] = args.ds
@@ -270,7 +273,7 @@ def main_multirun(args):
                 results_path=results_path,
                 )
 
-def main_contrain_run(args):
+def main_contrain_run():
     models_path = 'models/mlm/'
     experiments_path = 'experiments/mlm'
 
@@ -296,7 +299,6 @@ def main_contrain_run(args):
 
     models_checkpoints = sorted([dir for dir in os.listdir(models_path) if 'bert' in dir], reverse=True)
 
-    # print(f'run_config: {len(runs_config)}')
     print(f'models_checkpoints: {len(models_checkpoints)}')
 
     for checkpoint in models_checkpoints:
@@ -391,7 +393,7 @@ def main_contrain_run(args):
                     results_path=results_path,
                     )
 
-def main_evaluate(args):
+def main_evaluate():
     task = args.task
     ds = args.ds.upper()
     text_feat = args.text_feat
@@ -414,12 +416,12 @@ def main_evaluate(args):
     dataset_config = CmuDatasetConfig(
         sdkpath = SDK_DS['SDK_PATH'],
         dataset = ds,
-        text_features = text_features, # run_cfg['dataset_config']['feature_names']['text_feat'],
+        text_features = text_features,
         audio_features = audio_features,
         visual_features = visual_features,
-        labels = labels_features, # run_cfg['dataset_config']['labels'],
-        preprocess = False,
-        load_preprocessed = True, # by default load preprocessed data
+        labels = labels_features, 
+        preprocess = args.preprocess,
+        load_preprocessed = args.loadpreprocessed,
     )
 
     train.main_evaluate(checkpoints=models_checkpoints, dataset_config=dataset_config, task=task)
@@ -545,11 +547,11 @@ if __name__ == '__main__':
     )
 
     if args.eval:
-        main_evaluate(args)
+        main_evaluate()
     elif args.contrain:
-        main_contrain_run(args)
+        main_contrain_run()
     elif args.multirun:
-        main_multirun(args)
+        main_multirun()
     else:
-        main_single_run(args)
+        main_single_run()
         

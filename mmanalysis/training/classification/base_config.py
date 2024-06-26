@@ -5,7 +5,7 @@ base_config = {
 'text_features': 'RAWTEXT',
 # 'audio_features': 'COVAREP', # default 
 # 'visual_features': 'FACET42', # default
-'model_name': 'mmbert',
+'model_name': 'cmbert',
 'encoder_checkpoint': 'distilbert/distilbert-base-uncased',
 'hidden_dropout_prob': 0.2,
 'modality_att_dropout_prob': 0.3,
