@@ -41,7 +41,7 @@ from mmanalysis.utils import (
     set_optimizer_custom_parameters
 )
 
-def prepare_data_splits(ds):
+def prepare_data_splits(ds, *args):
     ds.features_as_dtype(np.float32)
 
     folds = {
@@ -149,7 +149,8 @@ def train(model, train_dataloader, valid_dataloader, num_epochs, patience, optim
     
     return best_model, train_loss, valid_eval
 
-def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
+# def main(model_name, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', dsdeploy=False):
+def main(model_name, train_ds, valid_ds, test_ds, dataset_config, model_config, training_arguments, results_path='experiments/results.jsonl', pretrained_checkpoint=None):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     seed = 7
     transformers.set_seed(seed)
@@ -163,15 +164,6 @@ def main(model_name, dataset_config, model_config, training_arguments, results_p
         TokenizerClass = MMBertTokenizer
 
     tokenizer = TokenizerClass(checkpoint=model_config.encoder_checkpoint)
-
-    # dataset
-    ds = CmuDataset(dataset_config)
-    if dsdeploy:
-        ds.deploy()
-
-
-    # split data into train, valid, test datasets
-    train_ds, valid_ds, test_ds = prepare_data_splits(ds=ds)
 
     dsdict = DatasetDict({
         'train': Dataset.from_dict(train_ds.dataset),
