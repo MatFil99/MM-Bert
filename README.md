@@ -35,10 +35,14 @@ pip install -r requirements.txt
 ```
 
 #### Provide path to SDK
-Edit file mmanalysis/datasets/cmu/configuration_cmu.py.
+Edit files mmanalysis/datasets/cmu/configuration_cmu.py, manalysis/datasets/cmu/sdk_datasets.py
 Provide full path to installed CMU-MultimodalSDK - change value of SDK_PATH variable (template shown below).
 ```
-SDK_PATH = r'D:\path-to-sdk\CMU-MultimodalSDK'
+mmanalysis/datasets/cmu/configuration_cmu.py
+sdkpath = r'D:\path-to-sdk\CMU-MultimodalSDK'
+
+manalysis/datasets/cmu/sdk_datasets.py
+sdk_path = r'D:\path-to-sdk\CMU-MultimodalSDK'
 ```
 
 ### How to use
