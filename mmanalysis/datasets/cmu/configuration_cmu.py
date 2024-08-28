@@ -3,7 +3,7 @@ import os
 class CmuDatasetConfig():
 
     def __init__(self,
-                 sdkpath = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK',
+                 sdkpath = r'/home/filip/studies/CS_WUT/master_thesis/CMU-MultimodalSDK',
                  dataset = 'cmumosi',
                  text_features = 'CMU_MOSI_TimestampedWords',
                  audio_features = 'CMU_MOSI_COVAREP',

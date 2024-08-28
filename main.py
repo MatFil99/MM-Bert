@@ -520,7 +520,7 @@ if __name__ == '__main__':
 
     if 'class' in args.task:
         from mmanalysis.training.classification import (
-            contrain_configuration,
+            # contrain_configuration,
             multirun_configuration,
             base_config,
             train,
@@ -535,7 +535,7 @@ if __name__ == '__main__':
         )
     elif args.task == 'reg':
         from mmanalysis.training.regression import (
-            contrain_configuration,
+            # contrain_configuration,
             multirun_configuration,
             base_config,
             train,

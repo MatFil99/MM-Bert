@@ -9,6 +9,7 @@ from .configuration_cmu import CmuDatasetConfig
 # import SDK tools
 SDKPATH= SDK_DS['SDK_PATH']
 sys.path.append(SDKPATH)
+
 # import mmsdk
 from mmsdk import mmdatasdk as md
 from mmsdk.mmdatasdk.configurations.metadataconfigs import featuresetMetadataTemplate

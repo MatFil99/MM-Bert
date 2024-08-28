@@ -49,6 +49,9 @@ class CmuDataset(Dataset):
             self.dataset = ds
         else:
             self.dataset, self.labels_ds = self.load_data()
+            if self.dataset is None:
+                self.download_datasets()
+                self.dataset, self.labels_ds = self.load_data()
 
         if config.load_preprocessed:
             self.append_labels_to_dataset()
@@ -193,7 +196,7 @@ class CmuDataset(Dataset):
             self.initialize_missing_metadata(self.dataset.computational_sequences[key])
 
         if destination is None:
-            destination = self.ds_path + '\\aligned'
+            destination = self.ds_path + '/aligned'
         if filenames is None:
             filenames = {feat: feat for feat in self.dataset.keys()}
         self.dataset.deploy(destination, filenames)
@@ -205,10 +208,10 @@ class CmuDataset(Dataset):
 
     def load_data(self):
         recipe_features = {
-            feat: self.ds_path + '\\' + feat + '.csd' for feat in self.feature_names.values() if feat is not None
+            feat: self.ds_path + '/' + feat + '.csd' for feat in self.feature_names.values() if feat is not None
         }
         recipe_labels = {
-            self.labels_name : self.ds_path + '\\' + self.labels_name + '.csd'
+            self.labels_name : self.ds_path + '/' + self.labels_name + '.csd'
         }
 
         try:

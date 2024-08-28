@@ -12,7 +12,7 @@ base_config = {
 
 # training arguments
 'batch_size': 8 ,
-'num_epochs': 4,
+'num_epochs': 20,
 'patience': 2,
 'chunk_size': 128,
 'wwm_probability': 0.2,

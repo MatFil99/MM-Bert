@@ -1,5 +1,5 @@
 # provide path to sdk downloaded from repository: https://github.com/CMU-MultiComp-Lab/CMU-MultimodalSDK/tree/main
-sdk_path = r'D:\Studia\magisterskie\Praca_magisterska\data\repo\CMU-MultimodalSDK'
+sdk_path = r'/home/filip/studies/CS_WUT/master_thesis/CMU-MultimodalSDK'
 
 class SDKDatasets(dict):
 

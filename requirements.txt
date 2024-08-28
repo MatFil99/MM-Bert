@@ -7,3 +7,6 @@ numpy==1.26.4
 evaluate==0.4.1
 validators==0.23.2
 scikit-learn==1.2.2
+
+
+colorama==0.4.6
