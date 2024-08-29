@@ -297,7 +297,7 @@ def main_contrain_run():
 
     base_config_arr = {key: [value] for key, value in base_config.items() if type(value) != list}
 
-    models_checkpoints = sorted([dir for dir in os.listdir(models_path) if 'bert' in dir], reverse=True)
+    models_checkpoints = sorted([dir for dir in os.listdir(models_path) if 'distilbert' in dir], reverse=True)
 
     print(f'models_checkpoints: {len(models_checkpoints)}')
 
@@ -313,7 +313,7 @@ def main_contrain_run():
 
             runs_config, _ = get_multirun_configuration(**param_config)
             print("Param {} - Number of runs configurations: {}, ds: {}, model {}".format(name, len(runs_config), param_config['dataset'], param_config['model_name']))
-            
+
             i = 1
             for run_config in runs_config:
                 print(f'config_run: {i} / {len(runs_config)}')

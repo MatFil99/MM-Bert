@@ -1,10 +1,15 @@
 # define parameters to test ()
 multirun_configuration = {
     
-    'hidden_dropout_prob': [0.1, 0.2, 0.3, 0.4, 0.5],
-    'modality_att_dropout_prob': [0.1, 0.2, 0.3, 0.4, 0.5],
-    'projection_size': [30, 60, 120, 240, 480, 768],
-    'freeze_params_layers': [0, 3, 4, 5, 6],
+    # 'hidden_dropout_prob': [0.1, 0.2, 0.3, 0.4, 0.5],
+    # 'modality_att_dropout_prob': [0.1, 0.2, 0.3, 0.4, 0.5],
+    # 'projection_size': [30, 60, 120, 240, 480, 768],
+    # 'freeze_params_layers': [0, 3, 4, 5, 6],
+
+
+    # for contrain
+    'hidden_dropout_prob': [0.2], # for only one run per checkpoint
+
 
 # other possible parameters
 # # dataset setting # remove it

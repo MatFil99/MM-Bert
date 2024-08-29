@@ -1,0 +1,10 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie class7 na zbiorze CMUMOSEI dla różnych wartości parametru accuracy.} 
+\label{tab:cmumosei_class7_mmbert_model_config_freeze_params_layers} 
+\begin{tabular}{*{5}{|c}|} \hline 
+freeze\_params\_layers & accuracy & f1 & precision & recall \\ \hline \hline 
+4.0 & 0.468 & 0.458 & 0.463 & 0.468 \\ \hline 
+\end{tabular}
+    \end{table}

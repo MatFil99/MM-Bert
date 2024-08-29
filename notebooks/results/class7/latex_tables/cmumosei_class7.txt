@@ -1,0 +1,21 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki pretrenowanych na zadaniu MLM modeli CMBERT i MMBERT realizujących zadanie klasyfikacji 7-klasowej na zbiorze CMUMOSEI dla różnych wartości parametru projection\_size.} 
+\label{tab:cmumosei_class7} 
+\begin{tabular}{*{9}{|c}|} \hline 
+hidden\_dropout\_prob & modality\_att\_dropout\_prob & freeze\_params\_layers & projection\_size & model\_name & accuracy & f1 & precision & recall \\ \hline \hline 
+0.2 & 0.3 & 4 & 120 & cmbert & 0.474 & 0.467 & 0.472 & 0.474 \\ \hline 
+0.2 & 0.3 & 4 & 240 & mmbert & 0.472 & 0.461 & 0.479 & 0.472 \\ \hline 
+0.2 & 0.3 & 4 & 240 & cmbert & 0.47 & 0.46 & 0.476 & 0.47 \\ \hline 
+0.2 & 0.3 & 4 & 60 & mmbert & 0.469 & 0.458 & 0.466 & 0.469 \\ \hline 
+0.2 & 0.3 & 4 & 30 & mmbert & 0.468 & 0.458 & 0.463 & 0.468 \\ \hline 
+0.2 & 0.3 & 4 & 60 & cmbert & 0.467 & 0.457 & 0.463 & 0.467 \\ \hline 
+0.2 & 0.3 & 4 & 30 & cmbert & 0.465 & 0.456 & 0.459 & 0.465 \\ \hline 
+0.2 & 0.3 & 4 & 768 & mmbert & 0.464 & 0.458 & 0.464 & 0.464 \\ \hline 
+0.2 & 0.3 & 4 & 480 & mmbert & 0.464 & 0.456 & 0.468 & 0.464 \\ \hline 
+0.2 & 0.3 & 4 & 480 & cmbert & 0.463 & 0.455 & 0.467 & 0.463 \\ \hline 
+0.2 & 0.3 & 4 & 768 & cmbert & 0.454 & 0.422 & 0.468 & 0.454 \\ \hline 
+0.2 & 0.3 & 4 & 120 & mmbert & 0.448 & 0.44 & 0.464 & 0.448 \\ \hline 
+\end{tabular}
+    \end{table}

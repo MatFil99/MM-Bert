@@ -1,0 +1,14 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie class2 na zbiorze CMUMOSEI dla różnych wartości parametru accuracy.} 
+\label{tab:cmumosei_class2_cmbert_model_config_hidden_dropout_prob} 
+\begin{tabular}{*{5}{|c}|} \hline 
+hidden\_dropout\_prob & accuracy & f1 & precision & recall \\ \hline \hline 
+0.5 & 0.762 & 0.765 & 0.741 & 0.791 \\ \hline 
+0.1 & 0.761 & 0.768 & 0.733 & 0.807 \\ \hline 
+0.2 & 0.76 & 0.77 & 0.728 & 0.817 \\ \hline 
+0.4 & 0.76 & 0.77 & 0.726 & 0.82 \\ \hline 
+0.3 & 0.759 & 0.769 & 0.727 & 0.817 \\ \hline 
+\end{tabular}
+    \end{table}

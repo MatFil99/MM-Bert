@@ -1,0 +1,14 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie mlm na zbiorze CMUMOSEI dla różnych wartości parametru perplexity.} 
+\label{tab:cmumosei_mlm_cmbert_model_config_freeze_params_layers} 
+\begin{tabular}{*{2}{|c}|} \hline 
+freeze\_params\_layers & perplexity \\ \hline \hline 
+0.0 & 113.311 \\ \hline 
+3.0 & 119.311 \\ \hline 
+5.0 & 120.72 \\ \hline 
+4.0 & 122.272 \\ \hline 
+6.0 & 124.75 \\ \hline 
+\end{tabular}
+    \end{table}

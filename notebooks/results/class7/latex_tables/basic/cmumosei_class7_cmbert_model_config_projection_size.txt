@@ -1,0 +1,15 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie class7 na zbiorze CMUMOSEI dla różnych wartości parametru accuracy.} 
+\label{tab:cmumosei_class7_cmbert_model_config_projection_size} 
+\begin{tabular}{*{5}{|c}|} \hline 
+projection\_size & accuracy & f1 & precision & recall \\ \hline \hline 
+120.0 & 0.474 & 0.467 & 0.472 & 0.474 \\ \hline 
+240.0 & 0.47 & 0.46 & 0.476 & 0.47 \\ \hline 
+60.0 & 0.467 & 0.457 & 0.463 & 0.467 \\ \hline 
+30.0 & 0.465 & 0.456 & 0.459 & 0.465 \\ \hline 
+480.0 & 0.463 & 0.455 & 0.467 & 0.463 \\ \hline 
+768.0 & 0.454 & 0.422 & 0.468 & 0.454 \\ \hline 
+\end{tabular}
+    \end{table}

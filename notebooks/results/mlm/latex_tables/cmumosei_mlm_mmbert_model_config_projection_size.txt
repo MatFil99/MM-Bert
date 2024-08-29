@@ -1,0 +1,15 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie mlm na zbiorze CMUMOSEI dla różnych wartości parametru perplexity.} 
+\label{tab:cmumosei_mlm_mmbert_model_config_projection_size} 
+\begin{tabular}{*{2}{|c}|} \hline 
+projection\_size & perplexity \\ \hline \hline 
+30.0 & 124.97 \\ \hline 
+480.0 & 126.554 \\ \hline 
+120.0 & 126.699 \\ \hline 
+60.0 & 126.856 \\ \hline 
+240.0 & 127.139 \\ \hline 
+768.0 & 130.72 \\ \hline 
+\end{tabular}
+    \end{table}

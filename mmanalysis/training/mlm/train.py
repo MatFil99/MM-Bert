@@ -11,6 +11,7 @@ from transformers import get_scheduler
 from tqdm.auto import tqdm
 from datasets.dataset_dict import DatasetDict
 from datasets import Dataset
+import evaluate
 
 
 from mmanalysis.models.cmbert import (
@@ -79,9 +80,13 @@ def tokenize_function(batch, *args, **kwargs):
 
     return tokenized
 
-def evaluation(model, dataloader, metrics_names=['perplexity']):
+def evaluation(model, dataloader, metrics_names=['accuracy', 'f1', 'precision', 'recall']):
     model.eval()
     losses = []
+
+    # TEST adding extra evaluation metrics for mlm task
+    # metrics = {metric: evaluate.load(metric) for metric in metrics_names}
+    # TEST
 
     for step, batch in enumerate(dataloader):
         with torch.no_grad():
@@ -90,11 +95,32 @@ def evaluation(model, dataloader, metrics_names=['perplexity']):
         loss = outputs.loss
         losses.append(loss.unsqueeze(0))
 
+    # TEST
+    #     predictions = torch.argmax(outputs.logits, dim=-1)
+    #     for name, metric in metrics.items():
+    #         metric.add_batch(predictions=predictions, references=batch['labels'])
+    # calculated_metrics = {}
+    # for name, metric in metrics.items():
+    #     # if neighter binary classification nor regression
+    #     if name in ['f1', 'precision', 'recall']:
+    #         metric_evaluation = metric.compute(average='weighted')
+    #     else:
+    #             metric_evaluation = metric.compute()
+
+    #     calculated_metrics.update(metric_evaluation)
+    # TEST
+
     losses = torch.tensor(losses[: len(dataloader)])
     try:
         perplexity = math.exp(torch.mean(losses))
     except OverflowError:
         perplexity = float("inf")
+
+    # TEST
+    # calculated_metrics['perplexity'] = perplexity
+    # calculated_metrics['loss'] = torch.sum(losses).item()
+    # return calculated_metrics
+    # TEST
 
     return {'perplexity': perplexity, 'loss': torch.sum(losses).item()}
 

@@ -1,0 +1,10 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie class7 na zbiorze CMUMOSEI dla różnych wartości parametru accuracy.} 
+\label{tab:cmumosei_class7_cmbert_model_config_modality_att_dropout_prob} 
+\begin{tabular}{*{5}{|c}|} \hline 
+modality\_att\_dropout\_prob & accuracy & f1 & precision & recall \\ \hline \hline 
+0.3 & 0.465 & 0.456 & 0.459 & 0.465 \\ \hline 
+\end{tabular}
+    \end{table}

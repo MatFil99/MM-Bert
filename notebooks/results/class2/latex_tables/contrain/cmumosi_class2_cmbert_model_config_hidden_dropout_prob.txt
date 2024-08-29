@@ -1,0 +1,10 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie class2 na zbiorze CMUMOSI dla różnych wartości parametru accuracy.} 
+\label{tab:cmumosi_class2_cmbert_model_config_hidden_dropout_prob} 
+\begin{tabular}{*{5}{|c}|} \hline 
+hidden\_dropout\_prob & accuracy & f1 & precision & recall \\ \hline \hline 
+0.2 & 0.773 & 0.741 & 0.686 & 0.805 \\ \hline 
+\end{tabular}
+    \end{table}

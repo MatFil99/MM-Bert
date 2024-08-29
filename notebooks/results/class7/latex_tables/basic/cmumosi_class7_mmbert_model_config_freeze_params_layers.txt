@@ -1,0 +1,14 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie class7 na zbiorze CMUMOSI dla różnych wartości parametru accuracy.} 
+\label{tab:cmumosi_class7_mmbert_model_config_freeze_params_layers} 
+\begin{tabular}{*{5}{|c}|} \hline 
+freeze\_params\_layers & accuracy & f1 & precision & recall \\ \hline \hline 
+0.0 & 0.418 & 0.399 & 0.453 & 0.418 \\ \hline 
+3.0 & 0.404 & 0.372 & 0.397 & 0.404 \\ \hline 
+4.0 & 0.386 & 0.356 & 0.391 & 0.386 \\ \hline 
+5.0 & 0.382 & 0.354 & 0.374 & 0.382 \\ \hline 
+6.0 & 0.343 & 0.286 & 0.257 & 0.343 \\ \hline 
+\end{tabular}
+    \end{table}

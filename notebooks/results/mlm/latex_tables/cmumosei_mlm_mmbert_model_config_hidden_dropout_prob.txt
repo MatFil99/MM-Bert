@@ -1,0 +1,14 @@
+
+    \begin{table}[ht!]
+    \centering
+    \caption{Wyniki modelu MMBERT realizującego zadanie mlm na zbiorze CMUMOSEI dla różnych wartości parametru perplexity.} 
+\label{tab:cmumosei_mlm_mmbert_model_config_hidden_dropout_prob} 
+\begin{tabular}{*{2}{|c}|} \hline 
+hidden\_dropout\_prob & perplexity \\ \hline \hline 
+0.1 & 121.75 \\ \hline 
+0.2 & 124.97 \\ \hline 
+0.3 & 129.833 \\ \hline 
+0.4 & 137.968 \\ \hline 
+0.5 & 145.952 \\ \hline 
+\end{tabular}
+    \end{table}
